@@ -37,6 +37,7 @@ export function useAgui() {
     setSessionId,
     setTask,
     setStatus,
+    setMode: setStoreMode,
     setPlan,
     addAgent,
     updateAgent,
@@ -54,6 +55,9 @@ export function useAgui() {
     setFinalReport,
     setError,
   } = useStore();
+  
+  // 记录当前任务的 mode，用于在 SESSION_CREATED 后设置
+  const currentModeRef = useRef<'emergent' | 'direct'>('emergent');
 
   /**
    * 解析 SSE 事件
@@ -98,9 +102,11 @@ export function useAgui() {
       // 新增：处理会话创建事件
       case EventType.SESSION_CREATED:
         const newSessionId = (event as any).session_id;
-        console.log(`[useAgui] Session created: ${newSessionId}`);
+        console.log(`[useAgui] Session created: ${newSessionId}, mode: ${currentModeRef.current}`);
         createSession(newSessionId);
         setSessionId(newSessionId);
+        // 立即设置 mode，避免 createSession 默认 'emergent' 覆盖
+        setStoreMode(currentModeRef.current);
         break;
 
       case EventType.RUN_STARTED:
@@ -322,7 +328,7 @@ export function useAgui() {
         console.log('Unknown event:', event);
     }
   }, [
-    currentSessionId, createSession, setSessionId,
+    currentSessionId, createSession, setSessionId, setStoreMode,
     setTask, setStatus, setPlan,
     addAgent, updateAgent, updateAgentThinking,
     addAgentToolCall, updateAgentToolCall,
@@ -349,6 +355,9 @@ export function useAgui() {
     existingSessionId?: string,
     mode: string = 'emergent'
   ) => {
+    // 记录当前 mode 到 ref，供 SESSION_CREATED 事件处理时使用
+    currentModeRef.current = mode as 'emergent' | 'direct';
+    
     // 如果有已存在的会话，切换到该会话
     if (existingSessionId) {
       // 追问场景：重置可视状态但保留消息历史
@@ -356,6 +365,7 @@ export function useAgui() {
       resetSessionForFollowup(existingSessionId);
       setActiveSession(existingSessionId);
       setTask(task);
+      setStoreMode(mode as 'emergent' | 'direct');
     } else {
       // 新任务：后端会创建会话，这里先设置 PLANNING 状态
       // 不要调用 reset()，等待后端 SESSION_CREATED 事件来创建会话
@@ -434,7 +444,7 @@ export function useAgui() {
       setStatus(AgentStatus.FAILED);
       setError(error instanceof Error ? error.message : 'Unknown error');
     }
-  }, [setTask, setStatus, setError, parseEvent, handleEvent, setActiveSession]);
+  }, [setTask, setStatus, setStoreMode, setError, parseEvent, handleEvent, setActiveSession]);
 
   /**
    * 人工干预

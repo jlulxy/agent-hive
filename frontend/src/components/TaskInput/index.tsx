@@ -29,10 +29,11 @@ export function TaskInput() {
   const [isStopping, setIsStopping] = useState(false);
   const [isSendingInstruction, setIsSendingInstruction] = useState(false);
   const { executeTask, intervene, stop } = useAgui();
-  const { status, sessionId, setStatus, agents, finalReport } = useStore();
+  const { status, sessionId, setStatus, setMode: setStoreMode, agents, finalReport, mode: storeMode } = useStore();
 
   const isRunning = status === AgentStatus.RUNNING || status === AgentStatus.PLANNING;
   const hasAgents = Object.keys(agents).length > 0;
+  const isDirectMode = storeMode === 'direct';
   // 追问检测：已完成/取消/失败且有历史报告
   const isFollowupReady = !isRunning && !!finalReport && 
     (status === AgentStatus.COMPLETED || status === AgentStatus.CANCELLED || status === AgentStatus.FAILED);
@@ -41,11 +42,12 @@ export function TaskInput() {
     e.preventDefault();
     if (!task.trim() || isRunning) return;
     
+    // 同步 mode 到 store
+    setStoreMode(mode);
+    
     if (isFollowupReady && sessionId) {
-      // 追问模式：携带当前 sessionId，后端自动判断并走追问流程
       await executeTask(task.trim(), provider, undefined, sessionId, mode);
     } else {
-      // 全新任务
       await executeTask(task.trim(), provider, undefined, undefined, mode);
     }
   };
@@ -104,8 +106,26 @@ export function TaskInput() {
       {isRunning ? (
         /* ========== 运行态：停止按钮始终显示，指令输入+下发按钮在 Agent 涌现后出现 ========== */
         <div className="space-y-4">
-          {/* 指令输入框：仅在 Agent 涌现后显示 */}
-          {hasAgents && (
+          {/* 普通模式：显示禁用的输入框（保留对话框但不可输入） */}
+          {isDirectMode && (
+            <div className="relative">
+              <textarea
+                disabled
+                placeholder="任务执行中，完成后可继续对话..."
+                rows={3}
+                className={cn(
+                  'w-full px-4 py-3 rounded-xl resize-none',
+                  'bg-dark-800/50 border border-dark-600/50',
+                  'text-dark-500 placeholder-dark-500',
+                  'cursor-not-allowed opacity-60',
+                  'transition-all duration-200'
+                )}
+              />
+            </div>
+          )}
+
+          {/* 涌现模式：指令输入框，仅在 Agent 涌现后显示 */}
+          {!isDirectMode && hasAgents && (
             <div className="relative">
               <textarea
                 value={instruction}
@@ -130,7 +150,7 @@ export function TaskInput() {
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
               <span className="text-sm text-dark-300">
-                {!hasAgents ? '规划中，等待 Agent 涌现...' : '任务执行中...'}
+                {isDirectMode ? '任务执行中...' : (!hasAgents ? '规划中，等待 Agent 涌现...' : '任务执行中...')}
               </span>
             </div>
 
@@ -157,8 +177,8 @@ export function TaskInput() {
                 停止任务
               </button>
 
-              {/* 下发指令按钮 — 仅在 Agent 涌现后显示 */}
-              {hasAgents && (
+              {/* 下发指令按钮 — 仅在涌现模式 Agent 涌现后显示 */}
+              {!isDirectMode && hasAgents && (
                 <button
                   type="button"
                   onClick={handleSendInstruction}
@@ -238,36 +258,7 @@ export function TaskInput() {
                 </div>
               </div>
 
-              {/* 提供者选择 */}
-              <div className="flex items-center gap-2">
-                <span className="text-sm text-dark-400">模型:</span>
-                <div className="flex rounded-lg overflow-hidden border border-dark-600">
-                  <button
-                    type="button"
-                    onClick={() => setProvider('openai')}
-                    className={cn(
-                      'px-3 py-1.5 text-xs font-medium transition-colors',
-                      provider === 'openai'
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-dark-800 text-dark-400 hover:text-white'
-                    )}
-                  >
-                    OpenAI
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setProvider('claude')}
-                    className={cn(
-                      'px-3 py-1.5 text-xs font-medium transition-colors',
-                      provider === 'claude'
-                        ? 'bg-primary-500 text-white'
-                        : 'bg-dark-800 text-dark-400 hover:text-white'
-                    )}
-                  >
-                    Claude
-                  </button>
-                </div>
-              </div>
+
             </div>
 
             {/* 提交按钮 */}

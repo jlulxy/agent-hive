@@ -29,6 +29,7 @@ export interface SessionState {
   id: string;
   task: string;
   status: AgentStatus;
+  mode: 'emergent' | 'direct';  // 涌现模式 / 普通模式
   plan: TaskPlan | null;
   agents: Record<string, Agent>;
   relayStations: Record<string, RelayStation>;
@@ -43,10 +44,11 @@ export interface SessionState {
   streamThinking: string;
 }
 
-const createEmptySessionState = (sessionId: string): SessionState => ({
+const createEmptySessionState = (sessionId: string, mode: 'emergent' | 'direct' = 'emergent'): SessionState => ({
   id: sessionId,
   task: '',
   status: AgentStatus.PENDING,
+  mode,
   plan: null,
   agents: {},
   relayStations: {},
@@ -78,6 +80,7 @@ interface AppState {
   sessionId: string | null;  // 当前活跃会话 ID
   task: string;
   status: AgentStatus;
+  mode: 'emergent' | 'direct';
   plan: TaskPlan | null;
   agents: Record<string, Agent>;
   relayStations: Record<string, RelayStation>;
@@ -91,6 +94,7 @@ interface AppState {
   setSessionId: (id: string) => void;
   setTask: (task: string) => void;
   setStatus: (status: AgentStatus) => void;
+  setMode: (mode: 'emergent' | 'direct') => void;
   setPlan: (plan: TaskPlan) => void;
   
   addAgent: (agent: Agent) => void;
@@ -127,6 +131,7 @@ const getActiveSessionData = (sessions: Record<string, SessionState>, activeSess
     return {
       task: '',
       status: AgentStatus.PENDING,
+      mode: 'emergent' as const,
       plan: null,
       agents: {},
       relayStations: {},
@@ -141,6 +146,7 @@ const getActiveSessionData = (sessions: Record<string, SessionState>, activeSess
   return {
     task: session.task,
     status: session.status,
+    mode: session.mode,
     plan: session.plan,
     agents: session.agents,
     relayStations: session.relayStations,
@@ -162,6 +168,7 @@ export const useStore = create<AppState>((set, get) => ({
   sessionId: null,
   task: '',
   status: AgentStatus.PENDING,
+  mode: 'emergent',
   plan: null,
   agents: {},
   relayStations: {},
@@ -312,6 +319,23 @@ export const useStore = create<AppState>((set, get) => ({
     return {
       sessions: updatedSessions,
       status,
+    };
+  }),
+
+  setMode: (mode) => set((state) => {
+    if (!state.activeSessionId) return state;
+    
+    const updatedSessions = {
+      ...state.sessions,
+      [state.activeSessionId]: {
+        ...state.sessions[state.activeSessionId],
+        mode,
+      },
+    };
+    
+    return {
+      sessions: updatedSessions,
+      mode,
     };
   }),
   

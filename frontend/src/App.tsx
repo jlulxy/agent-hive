@@ -57,6 +57,7 @@ export default function App() {
     status, 
     task, 
     plan, 
+    mode,
     sessionId, 
     createSession, 
     setActiveSession,
@@ -446,8 +447,8 @@ export default function App() {
             {/* 任务输入 */}
             <TaskInput />
 
-            {/* 任务信息 */}
-            {plan && (
+            {/* 任务信息（涌现模式才显示） */}
+            {plan && mode !== 'direct' && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
@@ -469,7 +470,8 @@ export default function App() {
             </div>
           </div>
 
-          {/* 右侧面板 */}
+          {/* 右侧面板（涌现模式才显示） */}
+          {mode !== 'direct' && (
           <div className="w-[400px] border-l border-dark-800 bg-dark-900/50 flex flex-col">
             {/* Tab 栏 */}
             <div className="flex border-b border-dark-800">
@@ -511,6 +513,7 @@ export default function App() {
               </AnimatePresence>
             </div>
           </div>
+          )}
         </main>
       </div>
 

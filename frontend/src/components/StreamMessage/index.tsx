@@ -125,7 +125,7 @@ function ToolCallCard({ toolCall, index }: { toolCall: AgentToolCall; index: num
 }
 
 export function StreamMessage() {
-  const { messages, agents, streamToolCalls, streamThinking } = useStore();
+  const { messages, agents, streamToolCalls, streamThinking, mode } = useStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
@@ -158,6 +158,7 @@ export function StreamMessage() {
   };
 
   const agentList = Object.values(agents);
+  const isDirectMode = mode === 'direct';
 
   return (
     <div className="h-full flex flex-col">
@@ -175,8 +176,8 @@ export function StreamMessage() {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
-        {/* 思考过程（仅普通模式，即没有 agent 时显示） */}
-        {streamThinking && agentList.length === 0 && (
+        {/* 思考过程（仅普通模式，即没有 agent 时显示；普通模式下隐藏涌现相关 UI） */}
+        {streamThinking && agentList.length === 0 && !isDirectMode && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -219,8 +220,8 @@ export function StreamMessage() {
           </motion.div>
         )}
 
-        {/* Skills 使用过程（仅普通模式，即没有 agent 时显示） */}
-        {streamToolCalls.length > 0 && agentList.length === 0 && (
+        {/* Skills 使用过程（普通模式下隐藏） */}
+        {streamToolCalls.length > 0 && agentList.length === 0 && !isDirectMode && (
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 mb-1">
               <Wrench className="w-3.5 h-3.5 text-cyan-400" />
@@ -270,8 +271,8 @@ export function StreamMessage() {
           ))}
         </AnimatePresence>
 
-        {/* Agent 工作过程（涌现模式） */}
-        {agentList.length > 0 && (
+        {/* Agent 工作过程（涌现模式，普通模式下隐藏） */}
+        {agentList.length > 0 && !isDirectMode && (
           <div className="mt-4 space-y-3">
             <h3 className="text-sm font-medium text-dark-400 flex items-center gap-2">
               <Bot className="w-4 h-4" />

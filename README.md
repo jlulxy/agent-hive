@@ -63,16 +63,26 @@ Users can initiate **human intervention** at any time, which is broadcast throug
 
 ### 3. Professional Skill Injection
 
-Pure LLM reasoning suffers from unstable output and capability ceilings. Agent Swarm addresses both through **dual-channel skill injection**:
+Pure LLM reasoning suffers from unstable output and capability ceilings. Agent Swarm addresses both through a **SKILL.md-driven injection mechanism** (inspired by Claude's Skills pattern):
 
-| Channel | Mechanism | Effect |
-|---------|-----------|--------|
-| **System Prompt Injection** | Embeds professional methodologies, frameworks, and quality standards into agent thinking | Consistent output structure, controllable process |
-| **Tool Capability Granting** | Grants actual execution power via Function Calling (search, analysis, etc.) | Breaks through pure reasoning ceiling |
+Each skill is defined as a `SKILL.md` file — a structured Markdown document containing professional workflows, guidelines, success criteria, and safety checks. During role emergence, relevant skills are **injected directly into the agent's system prompt**, transforming a generic LLM into a domain expert with internalized methodology.
 
-Skills are automatically matched during role emergence — a "Creative Director" receives directing skills, a "Content Planner" gets screenwriting skills, and roles needing real-time information get search skills. Each skill is not just a tool-calling interface, but a complete package of **domain knowledge + methodology + tools**.
+```
+SKILL.md (e.g. "Director" skill)
+├── Metadata        → name, tags, trigger keywords
+├── Workflow         → step-by-step professional process
+├── Guidelines       → industry best practices & principles
+├── Examples         → reference cases & templates
+└── Success Criteria → quality standards & checkpoints
+         ↓
+    Injected into Agent's System Prompt
+         ↓
+    LLM "thinks" like a professional director
+```
 
-The skill system is easily extensible: add a `SKILL.md` and scripts under `backend/skills/library/` to register new skills.
+For skills that need real-world execution power (e.g. web search), the `SKILL.md` can be paired with **executable scripts** — the agent calls them as tools, and real results (search data, analysis output) flow back into its reasoning.
+
+Skills are automatically matched during role emergence — a "Creative Director" receives directing skills, a "Content Planner" gets screenwriting skills, a researcher gets web-search skills. The skill system is easily extensible: add a `SKILL.md` (and optional scripts) under `backend/skills/library/` to register new skills.
 
 ### 4. Deliverable-Driven Output
 

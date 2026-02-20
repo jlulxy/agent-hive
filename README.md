@@ -1,7 +1,8 @@
 <p align="center">
   <h1 align="center">🐝 Agent Hive</h1>
-  <p align="center"><strong>让 AI 像顶尖咨询团队一样协作</strong></p>
-  <p align="center">动态涌现角色 · 认知对齐通讯 · 专业技能注入 · 交付物导向</p>
+  <p align="center"><strong>Make AI collaborate like an elite consulting team</strong></p>
+  <p align="center">Emergent Roles · Cognitive Alignment · Skill Injection · Deliverable-Driven Output</p>
+  <p align="center">English | <a href="README_CN.md">中文</a></p>
 </p>
 
 <p align="center">
@@ -14,102 +15,102 @@
 
 ---
 
-## 核心思想
+## Core Philosophy
 
-大多数 Multi-Agent 系统沿袭了"固定岗位"模式——开发者预先定义好角色和流水线，Agent 按流程图执行。这种方式面对开放式的复杂任务时，会遇到**角色不匹配、协作靠拼接、产出难交付**三大结构性问题。
+Most multi-agent systems follow a "fixed job" paradigm — developers predefine roles and pipelines, and agents execute according to flowcharts. This approach hits three structural walls when facing open-ended complex tasks: **role mismatch, stitched-together collaboration, and undeliverable output**.
 
-Agent Hive 换了一种思路：**借鉴顶尖咨询公司的项目制团队运作模式**。面对每一个新任务，由 LLM 从零分析需要什么样的专家、如何分工、如何协作，动态"涌现"一支最合适的团队——任务结束后团队解散，能力回归池中。
+Agent Hive takes a different approach: **it borrows from how elite consulting firms run project-based teams**. For every new task, the LLM analyzes from scratch what experts are needed, how to divide work, and how to collaborate — dynamically "emerging" the optimal team. When the task is done, the team dissolves and capabilities return to the pool.
 
-这不是工程上的微调，而是范式上的跃迁：从"预定义流水线"到"自组织专家蜂巢"。
+This is not an engineering tweak, but a paradigm shift: from "predefined pipelines" to a **"self-organizing expert hive"**.
 
 ---
 
-## 四大核心能力
+## Four Core Capabilities
 
-### 1. 动态角色涌现
+### 1. Dynamic Role Emergence
 
-传统框架需要开发者预设 `Agent(role="researcher")` 等固定角色。Agent Hive 的 **角色涌现引擎** 让 LLM 根据任务本质自主规划：
-
-```
-用户输入: "分析《花样年华》的镜头语言"
-
-→ 自动涌现:
-  🎬 镜头分析师  — 视觉叙事语言、构图、色彩
-  📖 叙事结构师  — 故事线、时间结构、留白技法
-  🎭 视觉符号学家 — 视觉隐喻、文化符号解读
-  🎵 配乐解读者  — 声画关系、音乐叙事功能
-```
-
-每个涌现角色都不是简单的名字标签，而是包含完整的**工作目标、预期交付物、方法论、成功标准和协作触发器**的专家画像。这意味着无论任务是分析电影、策划广告还是做行业研究，系统都能"组建"出最合适的专家团队，而非在预设角色里"凑合"。
-
-### 2. 中继站认知对齐
-
-多数并发方案是"放羊式"的——Agent 各干各的，最后堆砌合并。Agent Hive 引入了 **中继站（Relay Station）** 机制，实现实时认知同步：
+Traditional frameworks require developers to predefine `Agent(role="researcher")` and similar fixed roles. Agent Hive's **Role Emergence Engine** lets the LLM autonomously plan based on the task's nature:
 
 ```
-传统 2D 并发:                    Agent Hive 3D 编排:
-                                        ┌──────────────┐
-Agent A ──▶ 结果A ─┐                    │   中继站      │
-Agent B ──▶ 结果B ─┼─▶ 堆砌       ┌────┤  (战情室)    ├────┐
-Agent C ──▶ 结果C ─┘             ↕    ↕              ↕    ↕
-                              Agent A  Agent B     Agent C
-各干各的,互不知情              实时共享发现、对齐认知、校准方向
+User input: "Analyze the cinematography of In the Mood for Love"
+
+→ Auto-emerged roles:
+  🎬 Cinematography Analyst  — visual narrative language, composition, color
+  📖 Narrative Architect     — storyline, temporal structure, negative space
+  🎭 Visual Semiotician      — visual metaphors, cultural symbol interpretation
+  🎵 Score Interpreter       — audiovisual relationship, music narrative function
 ```
 
-中继站支持 **10 种消息类型**（发现广播、对齐请求/响应、建议、检查点、人工干预等），Agent 通过**自适应触发机制**自主判断何时需要与他人同步——发现关键信息时广播、遇到不确定时求证、到达进度节点时同步。
+Each emerged role is not just a name tag, but a complete expert profile with **work objectives, expected deliverables, methodology, success criteria, and collaboration triggers**. Whether the task is film analysis, ad campaign planning, or industry research, the system "assembles" the optimal expert team rather than "making do" with preset roles.
 
-用户也可以随时发起**人工干预**，干预信息通过中继站广播给所有相关 Agent，立即影响整个团队的认知方向。
+### 2. Relay Station Cognitive Alignment
 
-### 3. 专业技能注入
+Most concurrent approaches are "hands-off" — agents work in isolation, then results are piled together. Agent Hive introduces the **Relay Station** mechanism for real-time cognitive synchronization:
 
-纯 LLM 推理存在输出不稳定和能力天花板两大问题。Agent Hive 通过**双通道技能注入**同时解决：
+```
+Traditional 2D Concurrency:           Agent Hive 3D Orchestration:
+                                            ┌──────────────┐
+Agent A ──▶ Result A ─┐                     │ Relay Station │
+Agent B ──▶ Result B ─┼─▶ Pile up     ┌────┤  (War Room)   ├────┐
+Agent C ──▶ Result C ─┘              ↕    ↕               ↕    ↕
+                                   Agent A  Agent B     Agent C
+Isolated, unaware of each other    Real-time sharing, aligned cognition
+```
 
-| 通道 | 机制 | 效果 |
-|------|------|------|
-| **系统提示注入** | 将专业方法论、工作框架、质量标准植入 Agent 思维 | 输出结构一致、过程可控 |
-| **工具能力赋予** | 通过 Function Calling 赋予实际执行力（搜索、分析等） | 突破纯推理天花板 |
+The Relay Station supports **10 message types** (discovery broadcast, alignment request/response, suggestion, checkpoint, human intervention, etc.). Agents use **adaptive triggering** to autonomously decide when to sync with others — broadcasting when critical information is found, seeking verification when uncertain, and synchronizing at progress milestones.
 
-技能在角色涌现时自动匹配——"创意总监"获得导演技能、"内容策划"获得编剧技能、需要实时信息的角色获得搜索技能。每个技能都不只是工具调用接口，而是一套完整的**专业知识 + 方法论 + 工具**的组合。
+Users can initiate **human intervention** at any time, which is broadcast through the Relay Station to all relevant agents, immediately influencing the entire team's cognitive direction.
 
-技能系统支持灵活扩展：在 `backend/skills/library/` 下按规范添加 `SKILL.md` 和脚本即可注册新技能。
+### 3. Professional Skill Injection
 
-### 4. 交付物导向产出
+Pure LLM reasoning suffers from unstable output and capability ceilings. Agent Hive addresses both through **dual-channel skill injection**:
 
-LLM 最常见的问题是"形式漂亮、内容空洞"。Agent Hive 在角色涌现时就锚定每个 Agent 必须交付什么：
+| Channel | Mechanism | Effect |
+|---------|-----------|--------|
+| **System Prompt Injection** | Embeds professional methodologies, frameworks, and quality standards into agent thinking | Consistent output structure, controllable process |
+| **Tool Capability Granting** | Grants actual execution power via Function Calling (search, analysis, etc.) | Breaks through pure reasoning ceiling |
+
+Skills are automatically matched during role emergence — a "Creative Director" receives directing skills, a "Content Planner" gets screenwriting skills, and roles needing real-time information get search skills. Each skill is not just a tool-calling interface, but a complete package of **domain knowledge + methodology + tools**.
+
+The skill system is easily extensible: add a `SKILL.md` and scripts under `backend/skills/library/` to register new skills.
+
+### 4. Deliverable-Driven Output
+
+The most common LLM problem is "nice form, hollow content." Agent Hive anchors what each agent must deliver at role emergence time:
 
 ```python
-# 角色涌现时自动定义
+# Automatically defined during role emergence
 {
-    "name": "创意总监",
-    "work_objective": "制定广告创意方向，确保创意与品牌调性一致",
-    "deliverables": ["创意方向文档", "视觉风格指南", "最终创意审核"],
+    "name": "Creative Director",
+    "work_objective": "Define creative direction, ensure alignment with brand identity",
+    "deliverables": ["Creative Direction Document", "Visual Style Guide", "Final Creative Review"],
     "methodology": {
-        "approach": "以品牌核心价值为出发点，结合目标受众特点",
-        "steps": ["分析品牌调性", "确定创意方向", "定义视觉风格", ...],
-        "success_criteria": ["创意与品牌一致", "视觉风格统一", "符合目标受众"]
+        "approach": "Start from brand core values, combine with target audience traits",
+        "steps": ["Analyze brand identity", "Define creative direction", "Set visual style", ...],
+        "success_criteria": ["Creative-brand alignment", "Visual consistency", "Audience fit"]
     }
 }
 ```
 
-这套**"目标锚定 → 产出锚定 → 过程锚定 → 质量锚定"**的机制，将 Agent 从"接到指令就开始絮絮叨叨"的对话机器，变成"明确产出物、遵循方法论、交付专业成果"的价值创造者。
+This **"Goal Anchoring → Output Anchoring → Process Anchoring → Quality Anchoring"** mechanism transforms agents from "chatty dialogue machines that ramble upon receiving instructions" into "value creators that define deliverables, follow methodologies, and produce professional results."
 
 ---
 
-## 系统架构
+## Architecture
 
 ```
 ┌────────────────────────────────────────────────────┐
 │                  React Frontend                     │
-│   Agent 全景视图 · 中继站面板 · 流式消息 · 人工干预   │
+│   Agent Overview · Relay Panel · Streaming · HI     │
 └──────────────────────┬─────────────────────────────┘
                        │ AG-UI Protocol (SSE)
 ┌──────────────────────┴─────────────────────────────┐
 │                  Python Backend                      │
 │                                                      │
 │  ┌─────────────┐  ┌────────────┐  ┌──────────────┐ │
-│  │ Master Agent │──│ 角色涌现引擎 │──│  中继站      │ │
-│  └──────┬──────┘  └────────────┘  └──────┬───────┘ │
-│         │                                 │         │
+│  │ Master Agent │──│  Emergence  │──│Relay Station │ │
+│  └──────┬──────┘  │   Engine    │  └──────┬───────┘ │
+│         │         └────────────┘          │         │
 │  ┌──────┴──────────────────────────────────┴──────┐ │
 │  │          Dynamic Subagents (2-5)               │ │
 │  │   ┌─────────┐  ┌─────────┐  ┌─────────┐      │ │
@@ -118,7 +119,7 @@ LLM 最常见的问题是"形式漂亮、内容空洞"。Agent Hive 在角色涌
 │  └────────┼─────────────┼───────────┼────────────┘ │
 │           └─────────────┼───────────┘               │
 │                    ┌────┴────┐                       │
-│                    │  技能系统 │                      │
+│                    │  Skills  │                      │
 │                    └─────────┘                       │
 │          reasoning · director · web_search           │
 │        screenwriter · visual_designer · ...          │
@@ -130,183 +131,183 @@ LLM 最常见的问题是"形式漂亮、内容空洞"。Agent Hive 在角色涌
               └─────────────────┘
 ```
 
-| 模块 | 路径 | 职责 |
-|------|------|------|
-| Master Agent | `core/master_agent.py` | 任务分析、角色涌现调度、结果整合 |
-| 角色涌现引擎 | `core/role_emergence.py` | LLM 驱动的动态角色生成与技能分配 |
-| 中继站 | `core/relay_station.py` | 消息广播、认知对齐、人工干预处理 |
-| Subagent 运行时 | `core/subagent.py` | 独立执行单元、技能调用、中继触发 |
-| 技能系统 | `skills/` | 技能定义、自动注册、双通道注入与执行 |
-| AG-UI 协议 | `agui/` | SSE 事件流，前后端实时通信 |
-| 记忆系统 | `memory/` | 用户偏好与知识的持久化记忆 |
-| 会话管理 | `core/session_manager.py` | 多会话隔离与历史管理 |
+| Module | Path | Responsibility |
+|--------|------|----------------|
+| Master Agent | `core/master_agent.py` | Task analysis, role emergence orchestration, result synthesis |
+| Emergence Engine | `core/role_emergence.py` | LLM-driven dynamic role generation and skill assignment |
+| Relay Station | `core/relay_station.py` | Message broadcast, cognitive alignment, human intervention |
+| Subagent Runtime | `core/subagent.py` | Independent execution unit, skill invocation, relay triggering |
+| Skill System | `skills/` | Skill definition, auto-registration, dual-channel injection & execution |
+| AG-UI Protocol | `agui/` | SSE event stream, real-time frontend-backend communication |
+| Memory System | `memory/` | User preference and knowledge persistence |
+| Session Manager | `core/session_manager.py` | Multi-session isolation and history management |
 
 ---
 
-## 快速开始
+## Quick Start
 
-### 环境要求
+### Requirements
 
 - Python 3.9+
 - Node.js 18+
-- OpenAI API Key 或兼容的 API 端点
+- OpenAI API Key or compatible endpoint
 
-### 方式一：一键启动
+### Option 1: One-Click Launch
 
 ```bash
-git clone https://github.com/agent-hive/agent-hive.git
+git clone https://github.com/jlulxy/agent-hive.git
 cd agent-hive
 
-# 配置 API Key
+# Configure API Key
 cp backend/.env.example backend/.env
-# 编辑 backend/.env，填入你的 API Key
+# Edit backend/.env with your API Key
 
 chmod +x start.sh
 ./start.sh
 ```
 
-### 方式二：Docker
+### Option 2: Docker
 
 ```bash
-# 配置 API Key
+# Configure API Key
 cp backend/.env.example backend/.env
-# 编辑 backend/.env
+# Edit backend/.env
 
 docker compose up --build
 ```
 
-### 方式三：分别启动
+### Option 3: Manual Start
 
 ```bash
-# 后端
+# Backend
 cd backend
 pip install -r requirements.txt
 python main.py
 
-# 前端（新终端）
+# Frontend (new terminal)
 cd frontend
 npm install
 npm run dev
 ```
 
-### 访问
+### Access
 
-| 服务 | 地址 |
-|------|------|
-| 前端界面 | http://localhost:3000 |
-| 后端 API | http://localhost:8000 |
-| API 文档 | http://localhost:8000/docs |
-
----
-
-## 使用示例
-
-**电影深度分析：**
-
-输入："深度分析电影《盗梦空间》的叙事结构和视觉语言"
-
-系统自动涌现镜头分析师、叙事结构师、音效解读者、整合分析师四个专家角色，通过中继站实时共享发现（如"大量对称构图"与"宿命主题"的关联），最终产出跨维度交叉印证的深度分析报告。
-
-**品牌广告创意：**
-
-输入："为新能源汽车品牌创作30秒广告创意方案"
-
-系统涌现创意总监、内容策划、视觉设计师，分别负责创意方向把控、脚本文案创作、视觉风格设计。交付物包括创意方向文档、分镜脚本、视觉风格指南，而非泛泛而谈的"建议"。
+| Service | URL |
+|---------|-----|
+| Frontend UI | http://localhost:3000 |
+| Backend API | http://localhost:8000 |
+| API Docs | http://localhost:8000/docs |
 
 ---
 
-## 与主流方案的定位差异
+## Usage Examples
 
-| 维度 | 单体 Agent (Claude Code 等) | 预定义 Multi-Agent (AutoGen/CrewAI) | **Agent Hive** |
-|------|---------------------------|--------------------------------------|----------------|
-| 角色 | 固定角色 | 开发者预设 | **LLM 动态涌现** |
-| 协作 | 主-子调度 | 预设流程图 | **中继站实时对齐** |
-| 能力 | 领域专精 | 依赖工具定义 | **双通道技能注入** |
-| 产出 | 代码/对话 | 各自独立输出 | **交付物导向 + 成功标准** |
-| 最佳场景 | 线性任务 | 固定流程任务 | **开放式复杂协作任务** |
+**Deep Film Analysis:**
 
-Agent Hive 不是要取代单体 Agent 或固定流程框架——当任务复杂到需要"组建专家团队"而非"找一个高手"时，Agent Hive 是更优选择。
+Input: "Deeply analyze the narrative structure and visual language of Inception"
 
----
+The system automatically emerges four expert roles — Cinematography Analyst, Narrative Architect, Sound Interpreter, and Integration Analyst — who share discoveries in real-time via the Relay Station (e.g., correlating "extensive symmetrical composition" with "fate themes"), ultimately producing a cross-dimensional deep analysis report with mutual corroboration.
 
-## 技术栈
+**Brand Ad Creative:**
 
-**后端：** Python 3.9+ · FastAPI · Uvicorn · SQLite · OpenAI SDK · bcrypt + JWT
+Input: "Create a 30-second ad concept for a new energy vehicle brand"
 
-**前端：** React 18 · TypeScript · Vite · Tailwind CSS · Zustand · Lucide Icons
+The system emerges a Creative Director, Content Planner, and Visual Designer, responsible for creative direction, script copywriting, and visual style design respectively. Deliverables include a creative direction document, storyboard script, and visual style guide — not vague "suggestions."
 
 ---
 
-## 配置说明
+## Positioning vs. Mainstream Approaches
 
-复制 `backend/.env.example` 为 `backend/.env` 后编辑：
+| Dimension | Monolithic Agent (Claude Code, etc.) | Predefined Multi-Agent (AutoGen/CrewAI) | **Agent Hive** |
+|-----------|--------------------------------------|------------------------------------------|----------------|
+| Roles | Fixed role | Developer-preset | **LLM dynamically emerged** |
+| Collaboration | Master-sub dispatch | Preset flowchart | **Relay Station real-time alignment** |
+| Capability | Domain-specific | Tool-definition dependent | **Dual-channel skill injection** |
+| Output | Code/dialogue | Independent per agent | **Deliverable-driven + success criteria** |
+| Best For | Linear tasks | Fixed-process tasks | **Open-ended complex collaboration** |
+
+Agent Hive is not meant to replace monolithic agents or fixed-process frameworks — when a task is complex enough to need "assembling an expert team" rather than "finding one expert," Agent Hive is the better choice.
+
+---
+
+## Tech Stack
+
+**Backend:** Python 3.9+ · FastAPI · Uvicorn · SQLite · OpenAI SDK · bcrypt + JWT
+
+**Frontend:** React 18 · TypeScript · Vite · Tailwind CSS · Zustand · Lucide Icons
+
+---
+
+## Configuration
+
+Copy `backend/.env.example` to `backend/.env` and edit:
 
 ```bash
-# 必须配置
+# Required
 OPENAI_API_KEY=your-api-key-here
-OPENAI_BASE_URL=https://api.openai.com/v1    # 或其他兼容端点
-OPENAI_MODEL=gpt-4o                           # 推荐 GPT-4 级别模型
+OPENAI_BASE_URL=https://api.openai.com/v1    # or other compatible endpoint
+OPENAI_MODEL=gpt-4o                           # GPT-4 level model recommended
 
-# 可选配置
+# Optional
 HOST=0.0.0.0
 PORT=8000
-DEBUG=false                                    # true 启用热重载
+DEBUG=false                                    # true enables hot reload
 CORS_ORIGINS=http://localhost:3000,http://localhost:5173
 JWT_SECRET=change-this-to-a-random-string
 ```
 
-完整配置项参见 `backend/.env.example`。
+See `backend/.env.example` for all configuration options.
 
 ---
 
-## 项目结构
+## Project Structure
 
 ```
 agent-hive/
 ├── backend/
-│   ├── main.py              # 入口
-│   ├── core/                # 核心引擎
+│   ├── main.py              # Entry point
+│   ├── core/                # Core engine
 │   │   ├── master_agent.py  # Master Agent
-│   │   ├── role_emergence.py# 角色涌现
-│   │   ├── relay_station.py # 中继站
-│   │   ├── subagent.py      # Subagent 运行时
-│   │   └── models.py        # 数据模型
-│   ├── skills/              # 技能系统
-│   │   ├── library/         # 技能库（可扩展）
-│   │   ├── registry.py      # 技能注册
-│   │   ├── executor.py      # 技能执行
-│   │   └── loader.py        # 技能加载
-│   ├── agui/                # AG-UI 协议
-│   ├── memory/              # 记忆系统
-│   ├── auth/                # 认证
-│   └── api/                 # API 路由
+│   │   ├── role_emergence.py# Role Emergence
+│   │   ├── relay_station.py # Relay Station
+│   │   ├── subagent.py      # Subagent Runtime
+│   │   └── models.py        # Data Models
+│   ├── skills/              # Skill system
+│   │   ├── library/         # Skill library (extensible)
+│   │   ├── registry.py      # Skill registry
+│   │   ├── executor.py      # Skill executor
+│   │   └── loader.py        # Skill loader
+│   ├── agui/                # AG-UI Protocol
+│   ├── memory/              # Memory system
+│   ├── auth/                # Authentication
+│   └── api/                 # API routes
 ├── frontend/
 │   └── src/
-│       ├── App.tsx           # 主界面
-│       ├── components/       # UI 组件
-│       ├── hooks/            # AG-UI Hook
-│       └── store/            # 状态管理
-├── start.sh                  # 一键启动
-├── docker-compose.yml        # Docker 部署
+│       ├── App.tsx           # Main interface
+│       ├── components/       # UI components
+│       ├── hooks/            # AG-UI Hooks
+│       └── store/            # State management
+├── start.sh                  # One-click launch
+├── docker-compose.yml        # Docker deployment
 └── Dockerfile
 ```
 
 ---
 
-## 贡献
+## Contributing
 
-欢迎贡献！请阅读 [CONTRIBUTING.md](CONTRIBUTING.md) 了解开发流程和规范。
+Contributions welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for development workflow and guidelines.
 
-## 设计哲学
+## Design Philosophy
 
-> **"不是让 AI 更聪明，而是让 AI 更专业地协作。"**
+> **"Not about making AI smarter, but about making AI collaborate more professionally."**
 
-- **角色涌现** 解决 "谁来做" — 让最合适的专家来处理任务
-- **中继通讯** 解决 "怎么协作" — 让专家之间真正对齐认知
-- **技能注入** 解决 "做得好" — 让专家拥有专业工具和方法论
-- **交付物导向** 解决 "交得出" — 让产出真正可交付、可使用
+- **Role Emergence** solves "who does it" — the right expert for the task
+- **Relay Communication** solves "how to collaborate" — real cognitive alignment between experts
+- **Skill Injection** solves "doing it well" — professional tools and methodologies
+- **Deliverable-Driven** solves "what to ship" — truly deliverable, usable output
 
-这四者相互增强，形成一个自组织、自协调的智能协作蜂巢。
+These four reinforce each other, forming a self-organizing, self-coordinating intelligent collaboration hive.
 
 ## License
 

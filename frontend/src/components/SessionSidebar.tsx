@@ -364,7 +364,7 @@ export const SessionSidebar: React.FC<SessionSidebarProps> = ({
           <div className="p-4 text-center">
             <p className="text-red-400 text-xs">{error}</p>
             <button 
-              onClick={loadSessions}
+              onClick={() => loadSessions()}
               className="mt-2 text-primary-400 hover:text-primary-300 text-xs"
             >
               重试

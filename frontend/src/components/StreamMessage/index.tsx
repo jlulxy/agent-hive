@@ -160,6 +160,9 @@ export function StreamMessage() {
   const agentList = Object.values(agents);
   const isDirectMode = mode === 'direct';
 
+  // 调试日志
+  console.log(`[StreamMessage] Render: mode=${mode}, streamToolCalls.length=${streamToolCalls.length}, streamThinking.length=${streamThinking.length}, agentList.length=${agentList.length}, messages.length=${messages.length}`);
+
   return (
     <div className="h-full flex flex-col">
       {/* 头部 */}
@@ -176,8 +179,8 @@ export function StreamMessage() {
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
-        {/* 思考过程（仅普通模式，即没有 agent 时显示；普通模式下隐藏涌现相关 UI） */}
-        {streamThinking && agentList.length === 0 && !isDirectMode && (
+      {/* 思考过程（没有 agent 时显示，即 direct 模式和 emergent 模式无 subagent 时均显示） */}
+        {streamThinking && agentList.length === 0 && (
           <motion.div
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -220,8 +223,8 @@ export function StreamMessage() {
           </motion.div>
         )}
 
-        {/* Skills 使用过程（普通模式下隐藏） */}
-        {streamToolCalls.length > 0 && agentList.length === 0 && !isDirectMode && (
+        {/* Skills 使用过程（没有 agent 时显示，即 direct 模式和 emergent 模式无 subagent 时均显示） */}
+        {streamToolCalls.length > 0 && agentList.length === 0 && (
           <div className="space-y-1.5">
             <div className="flex items-center gap-2 mb-1">
               <Wrench className="w-3.5 h-3.5 text-cyan-400" />

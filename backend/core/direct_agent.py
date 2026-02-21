@@ -407,6 +407,17 @@ class DirectAgent:
                 args.extend(["--max-results", "8"])
             return args
         
+        # sougou-search skill: search.py 需要 --query 参数
+        if skill_name == "sougou-search":
+            args = ["--query", task_desc]
+            options = func_args.get("options", {})
+            if isinstance(options, dict):
+                if options.get("max_results"):
+                    args.extend(["--max-results", str(options["max_results"])])
+            if "--max-results" not in args:
+                args.extend(["--max-results", "10"])
+            return args
+        
         # 其他 skill 使用通用格式
         if task_desc:
             return [task_desc]

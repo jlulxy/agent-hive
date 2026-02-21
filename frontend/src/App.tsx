@@ -18,8 +18,6 @@ import {
   Sparkles,
   Github,
   Plus,
-  ChevronLeft,
-  ChevronRight,
   LogOut,
   Brain,
 } from 'lucide-react';
@@ -55,17 +53,15 @@ export default function App() {
   
   const { 
     status, 
-    task, 
     plan, 
     mode,
     sessionId, 
     createSession, 
-    setActiveSession,
     reset 
   } = useStore();
   
   // 使用 useAgui hook 获取订阅功能
-  const { subscribeToSession, unsubscribeFromSession, isSubscribing } = useAgui();
+  const { subscribeToSession, unsubscribeFromSession } = useAgui();
   
   // 点击外部关闭用户菜单
   useEffect(() => {
@@ -142,14 +138,27 @@ export default function App() {
     // 先取消之前的订阅
     unsubscribeFromSession();
     
-    // 检查是否在 store 中
+    // 检查是否在 store 中已有数据（无论是前端临时 ID 还是后端 UUID）
     const { sessions, setActiveSession: setActive } = useStore.getState();
     
-    // 如果是前端自动生成的临时会话 ID（以 session- 开头），
-    // 直接切换到 store 中的数据
-    if (selectedSessionId.startsWith('session-') && sessions[selectedSessionId]) {
+    if (sessions[selectedSessionId]) {
+      // 会话数据已在 store 中，直接切换，避免覆盖已有数据
       setActive(selectedSessionId);
       updateUrlWithSession(selectedSessionId);
+      
+      // 如果是运行中的后端会话（非前端临时 ID），也尝试订阅实时更新
+      if (!selectedSessionId.startsWith('session-')) {
+        const session = sessions[selectedSessionId];
+        if (session.status === AgentStatus.RUNNING || session.status === AgentStatus.PLANNING) {
+          try {
+            // 订阅但不覆盖 — subscribeToSession 中 handleStateSnapshot 会调用 createSession
+            // 但 createSession 对已存在的 session 只更新 lastActiveAt，不清空数据
+            await subscribeToSession(selectedSessionId);
+          } catch (err) {
+            console.warn('[App] Re-subscription failed, using cached data:', err);
+          }
+        }
+      }
       return;
     }
     
@@ -233,7 +242,7 @@ export default function App() {
             thinking: agentData.thinking,
             workObjective: agentData.work_objective,
             deliverables: agentData.deliverables,
-            methodology: agentData.methodology,
+            methodology: agentData.methodology as any,
           });
         }
         
@@ -243,7 +252,7 @@ export default function App() {
             id: stationData.station_id,
             name: stationData.name,
             phase: stationData.phase,
-            participatingAgents: stationData.participating_agents,
+            participatingAgents: stationData.participating_agents as any,
             messages: [],
             isActive: stationData.is_active,
           });

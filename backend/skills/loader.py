@@ -337,7 +337,7 @@ class SkillLoader:
                     matched_files = [file_path] if file_path.exists() else []
                 
                 for file_path in matched_files:
-                    if file_path.is_file() and file_path.name != self.SKILL_FILE:
+                    if file_path.is_file() and file_path.name != self.SKILL_FILE and not file_path.name.startswith('._'):
                         relative_path = str(file_path.relative_to(skill_path))
                         resource = SkillResource(
                             name=file_path.stem,

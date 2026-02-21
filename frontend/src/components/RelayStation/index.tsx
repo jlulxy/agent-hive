@@ -7,7 +7,7 @@
 
 import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Radio, MessageSquare, ArrowRight, Zap, UserCircle, AlertTriangle, Bell, Eye, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import { Radio, ArrowRight, Zap, UserCircle, AlertTriangle, Bell, Eye, CheckCircle, ChevronDown, ChevronUp } from 'lucide-react';
 import { getAuthHeader } from '../../auth/api';
 import { useStore } from '../../store';
 import { cn } from '../../utils/cn';
@@ -291,7 +291,7 @@ function RelayMessageItem({ msg, agents }: { msg: any; agents: any[] }) {
 }
 
 // 普通消息列表组件 - 支持折叠展开
-function RegularMessagesSection({ messages, agents, stationId }: { 
+function RegularMessagesSection({ messages, agents }: { 
   messages: any[]; 
   agents: any[];
   stationId: string;

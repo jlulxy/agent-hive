@@ -24,34 +24,114 @@ import sys
 import asyncio
 from typing import List, Dict, Any, Optional
 
+import re
+import html as html_module
+
 try:
-    # 尝试新包名 ddgs
+    import httpx
+    _HAS_HTTPX = True
+except ImportError:
+    _HAS_HTTPX = False
+
+try:
     from ddgs import DDGS
-    DuckDuckGoSearchException = Exception  # ddgs 使用通用异常
+    DuckDuckGoSearchException = Exception
+    _HAS_DDGS = True
 except ImportError:
     try:
-        # 回退到旧包名
         from duckduckgo_search import DDGS
         from duckduckgo_search.exceptions import DuckDuckGoSearchException
+        _HAS_DDGS = True
     except ImportError:
-        print(json.dumps({
-            "success": False,
-            "error": "缺少依赖: 请运行 pip install ddgs (或 pip install duckduckgo-search)",
-            "error_code": "MISSING_DEPENDENCY"
-        }))
-        sys.exit(1)
+        _HAS_DDGS = False
+        DuckDuckGoSearchException = Exception
+
+if not _HAS_DDGS and not _HAS_HTTPX:
+    print(json.dumps({
+        "success": False,
+        "error": "缺少依赖: 请运行 pip install ddgs httpx",
+        "error_code": "MISSING_DEPENDENCY"
+    }))
+    sys.exit(1)
+
+
+class BingFallbackSearcher:
+    """Bing 搜索 fallback — 使用 httpx 直接抓取 Bing HTML 结果"""
+
+    HEADERS = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml",
+        "Accept-Language": "en-US,en;q=0.9,zh-CN;q=0.8,zh;q=0.7",
+    }
+
+    def __init__(self, timeout: int = 20):
+        self.timeout = timeout
+
+    def search(self, query: str, max_results: int = 8) -> List[Dict[str, Any]]:
+        url = "https://www.bing.com/search"
+        params = {"q": query, "count": str(min(max_results * 2, 30))}
+        with httpx.Client(timeout=self.timeout, follow_redirects=True, headers=self.HEADERS) as client:
+            resp = client.get(url, params=params)
+            resp.raise_for_status()
+            return self._parse_html(resp.text, max_results)
+
+    def search_news(self, query: str, max_results: int = 8) -> List[Dict[str, Any]]:
+        url = "https://www.bing.com/news/search"
+        params = {"q": query, "count": str(min(max_results * 2, 30))}
+        with httpx.Client(timeout=self.timeout, follow_redirects=True, headers=self.HEADERS) as client:
+            resp = client.get(url, params=params)
+            resp.raise_for_status()
+            return self._parse_news_html(resp.text, max_results)
+
+    @staticmethod
+    def _parse_html(body: str, max_results: int) -> List[Dict[str, Any]]:
+        results = []
+        li_pattern = re.compile(r'<li class="b_algo"[^>]*>(.*?)</li>', re.DOTALL)
+        for m in li_pattern.finditer(body):
+            block = m.group(1)
+            href_m = re.search(r'<a\s+href="(https?://[^"]+)"', block)
+            title_m = re.search(r'<a[^>]*>(.*?)</a>', block, re.DOTALL)
+            snippet_m = re.search(r'<p[^>]*>(.*?)</p>', block, re.DOTALL)
+            if href_m:
+                title_raw = title_m.group(1) if title_m else ""
+                title_clean = re.sub(r'<[^>]+>', '', title_raw).strip()
+                snippet_raw = snippet_m.group(1) if snippet_m else ""
+                snippet_clean = re.sub(r'<[^>]+>', '', snippet_raw).strip()
+                results.append({
+                    "title": html_module.unescape(title_clean),
+                    "url": href_m.group(1),
+                    "snippet": html_module.unescape(snippet_clean),
+                    "source": "bing",
+                })
+            if len(results) >= max_results:
+                break
+        return results
+
+    @staticmethod
+    def _parse_news_html(body: str, max_results: int) -> List[Dict[str, Any]]:
+        results = []
+        card_pattern = re.compile(r'<a[^>]+class="[^"]*title[^"]*"[^>]+href="(https?://[^"]+)"[^>]*>(.*?)</a>', re.DOTALL)
+        for m in card_pattern.finditer(body):
+            title_clean = re.sub(r'<[^>]+>', '', m.group(2)).strip()
+            results.append({
+                "title": html_module.unescape(title_clean),
+                "url": m.group(1),
+                "snippet": "",
+                "date": "",
+                "source": "bing-news",
+            })
+            if len(results) >= max_results:
+                break
+        return results
 
 
 class WebSearcher:
-    """DuckDuckGo 搜索封装"""
-    
+    """Web 搜索 — DuckDuckGo 优先，Bing 兜底"""
+
     def __init__(self, timeout: int = 30):
-        """
-        Args:
-            timeout: 搜索超时时间（秒）
-        """
         self.timeout = timeout
-    
+        self._bing = BingFallbackSearcher(timeout=min(timeout, 20)) if _HAS_HTTPX else None
+
     def search(
         self,
         query: str,
@@ -60,52 +140,38 @@ class WebSearcher:
         time_range: Optional[str] = None,
         safesearch: str = "moderate"
     ) -> List[Dict[str, Any]]:
-        """
-        执行通用网页搜索
-        
-        Args:
-            query: 搜索关键词
-            max_results: 返回结果数量（最大20）
-            region: 搜索区域 (wt-wt:全球, cn-zh:中国, us-en:美国)
-            time_range: 时间范围 (d:天, w:周, m:月, y:年)
-            safesearch: 安全搜索级别 (on, moderate, off)
-            
-        Returns:
-            搜索结果列表，每个结果包含:
-            - title: 标题
-            - href: 链接
-            - body: 摘要
-        """
-        max_results = min(max_results, 20)  # 限制最大结果数
-        
-        try:
-            # 新版 ddgs API: 不使用 context manager, 直接实例化
-            ddgs = DDGS(timeout=self.timeout)
-            results = ddgs.text(
-                query,  # 第一个位置参数是 query
-                region=region,
-                safesearch=safesearch,
-                timelimit=time_range,
-                max_results=max_results
-            )
-            
-            # 标准化结果格式
-            standardized = []
-            for r in results:
-                standardized.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("href", r.get("link", "")),
-                    "snippet": r.get("body", r.get("snippet", "")),
-                    "source": "duckduckgo"
-                })
-            
-            return standardized
-                
-        except DuckDuckGoSearchException as e:
-            raise SearchError(f"DuckDuckGo 搜索失败: {e}")
-        except Exception as e:
-            raise SearchError(f"搜索执行错误: {e}")
-    
+        max_results = min(max_results, 20)
+
+        # 尝试 DuckDuckGo
+        if _HAS_DDGS:
+            try:
+                ddgs = DDGS(timeout=self.timeout)
+                results = ddgs.text(
+                    query, region=region, safesearch=safesearch,
+                    timelimit=time_range, max_results=max_results
+                )
+                standardized = []
+                for r in results:
+                    standardized.append({
+                        "title": r.get("title", ""),
+                        "url": r.get("href", r.get("link", "")),
+                        "snippet": r.get("body", r.get("snippet", "")),
+                        "source": "duckduckgo"
+                    })
+                if standardized:
+                    return standardized
+            except Exception as e:
+                print(f"[WebSearch] DuckDuckGo failed: {e}, falling back to Bing", file=sys.stderr)
+
+        # Fallback: Bing
+        if self._bing:
+            try:
+                return self._bing.search(query, max_results)
+            except Exception as e:
+                raise SearchError(f"Bing fallback 也失败了: {e}")
+
+        raise SearchError("DuckDuckGo 和 Bing 均不可用")
+
     def search_news(
         self,
         query: str,
@@ -114,66 +180,41 @@ class WebSearcher:
         time_range: Optional[str] = None,
         safesearch: str = "moderate"
     ) -> List[Dict[str, Any]]:
-        """
-        执行新闻搜索
-        
-        Args:
-            query: 搜索关键词
-            max_results: 返回结果数量（最大20）
-            region: 搜索区域
-            time_range: 时间范围 (d:天, w:周, m:月)
-            safesearch: 安全搜索级别
-            
-        Returns:
-            新闻搜索结果列表，每个结果包含:
-            - title: 新闻标题
-            - url: 新闻链接
-            - snippet: 新闻摘要
-            - date: 发布日期
-            - source: 来源
-        """
         max_results = min(max_results, 20)
-        
-        try:
-            # 新版 ddgs API
-            ddgs = DDGS(timeout=self.timeout)
-            results = ddgs.news(
-                query,  # 第一个位置参数是 query
-                region=region,
-                safesearch=safesearch,
-                timelimit=time_range,
-                max_results=max_results
-            )
-            
-            # 标准化结果格式
-            standardized = []
-            for r in results:
-                standardized.append({
-                    "title": r.get("title", ""),
-                    "url": r.get("url", r.get("link", "")),
-                    "snippet": r.get("body", r.get("excerpt", "")),
-                    "date": r.get("date", ""),
-                    "source": r.get("source", "unknown"),
-                    "image": r.get("image", "")
-                })
-            
-            return standardized
-                
-        except DuckDuckGoSearchException as e:
-            raise SearchError(f"DuckDuckGo 新闻搜索失败: {e}")
-        except Exception as e:
-            raise SearchError(f"新闻搜索执行错误: {e}")
-    
+
+        if _HAS_DDGS:
+            try:
+                ddgs = DDGS(timeout=self.timeout)
+                results = ddgs.news(
+                    query, region=region, safesearch=safesearch,
+                    timelimit=time_range, max_results=max_results
+                )
+                standardized = []
+                for r in results:
+                    standardized.append({
+                        "title": r.get("title", ""),
+                        "url": r.get("url", r.get("link", "")),
+                        "snippet": r.get("body", r.get("excerpt", "")),
+                        "date": r.get("date", ""),
+                        "source": r.get("source", "unknown"),
+                        "image": r.get("image", "")
+                    })
+                if standardized:
+                    return standardized
+            except Exception as e:
+                print(f"[WebSearch] DuckDuckGo news failed: {e}, falling back to Bing", file=sys.stderr)
+
+        if self._bing:
+            try:
+                return self._bing.search_news(query, max_results)
+            except Exception as e:
+                raise SearchError(f"Bing news fallback 也失败了: {e}")
+
+        raise SearchError("新闻搜索：DuckDuckGo 和 Bing 均不可用")
+
     def instant_answer(self, query: str) -> Optional[Dict[str, Any]]:
-        """
-        获取即时答案（如果有）
-        
-        Args:
-            query: 查询关键词
-            
-        Returns:
-            即时答案信息，可能为 None
-        """
+        if not _HAS_DDGS:
+            return None
         try:
             ddgs = DDGS(timeout=self.timeout)
             results = ddgs.answers(query)

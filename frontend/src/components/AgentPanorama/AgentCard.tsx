@@ -32,7 +32,7 @@ import {
   FileText,
   BarChart,
 } from 'lucide-react';
-import { Agent, AgentStatus, SkillAssignment, AgentToolCall } from '../../types/agui';
+import { Agent, AgentStatus, SkillAssignment } from '../../types/agui';
 import { cn } from '../../utils/cn';
 
 interface AgentCardProps {

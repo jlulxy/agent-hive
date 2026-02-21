@@ -824,6 +824,12 @@ class SubagentRuntime:
                 args.extend(["--time-range", func_args["time_range"]])
             # 默认 JSON 输出
             args.extend(["--format", "json"])
+        elif skill_name == "sougou-search":
+            query = func_args.get("task", func_args.get("query", ""))
+            args.extend(["--query", query])
+            if "max_results" in func_args:
+                args.extend(["--max-results", str(func_args["max_results"])])
+            args.extend(["--format", "json"])
         else:
             # 通用：将 task 作为参数
             task = func_args.get("task", "")

@@ -24,7 +24,7 @@ const exampleTasks = [
 export function TaskInput() {
   const [task, setTask] = useState('');
   const [instruction, setInstruction] = useState('');
-  const [provider, setProvider] = useState<'openai' | 'claude'>('openai');
+  const [provider] = useState<'openai' | 'claude'>('openai');
   const [mode, setMode] = useState<'emergent' | 'direct'>('emergent');
   const [isStopping, setIsStopping] = useState(false);
   const [isSendingInstruction, setIsSendingInstruction] = useState(false);

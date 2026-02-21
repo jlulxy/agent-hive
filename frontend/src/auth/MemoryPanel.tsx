@@ -4,7 +4,7 @@
  * 以 Drawer 形式从右侧滑出，展示用户记忆列表和记忆系统状态
  */
 
-import React, { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X, Brain, Search, RefreshCw, AlertCircle, Zap, Database, Trash2 } from 'lucide-react';
 import { getAuthHeader } from './api';

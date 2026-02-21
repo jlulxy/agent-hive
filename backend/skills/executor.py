@@ -226,10 +226,12 @@ class SkillExecutor:
                 error_code="SKILL_NOT_FOUND"
             )
         
-        # 查找脚本
+        # 查找脚本（跳过 macOS ._* 元数据文件）
         scripts = skill.get_scripts()
         script_resource = None
         for s in scripts:
+            if s.name.startswith('._'):
+                continue
             if script_name in s.path or s.name == script_name:
                 script_resource = s
                 break
@@ -255,7 +257,9 @@ class SkillExecutor:
         try:
             # 构建命令
             if script_path.suffix == '.py':
-                cmd = ['python', str(script_path)] + (args or [])
+                import shutil
+                python_bin = shutil.which('python3') or shutil.which('python') or 'python3'
+                cmd = [python_bin, str(script_path)] + (args or [])
             elif script_path.suffix == '.sh':
                 cmd = ['bash', str(script_path)] + (args or [])
             elif script_path.suffix == '.js':

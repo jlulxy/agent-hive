@@ -12,7 +12,6 @@
 
 import { create } from 'zustand';
 import {
-  TaskSession,
   TaskPlan,
   Agent,
   AgentToolCall,
@@ -605,7 +604,7 @@ export const useStore = create<AppState>((set, get) => ({
     };
   }),
 
-  closeRelayStation: (stationId, summary) => set((state) => {
+  closeRelayStation: (stationId, _summary) => set((state) => {
     if (!state.activeSessionId) return state;
     
     const currentSession = state.sessions[state.activeSessionId];
@@ -686,9 +685,17 @@ export const useStore = create<AppState>((set, get) => ({
   // === 消息流级别 tool call / thinking（普通模式用）===
   
   addStreamToolCall: (toolCall) => set((state) => {
-    if (!state.activeSessionId) return state;
+    if (!state.activeSessionId) {
+      console.warn('[Store] addStreamToolCall: no activeSessionId, dropping tool call:', toolCall.toolName);
+      return state;
+    }
     
     const currentSession = state.sessions[state.activeSessionId];
+    if (!currentSession) {
+      console.warn('[Store] addStreamToolCall: session not found for id:', state.activeSessionId);
+      return state;
+    }
+    
     const updatedToolCalls = [...currentSession.streamToolCalls, toolCall];
     
     const updatedSessions = {
@@ -698,6 +705,8 @@ export const useStore = create<AppState>((set, get) => ({
         streamToolCalls: updatedToolCalls,
       },
     };
+    
+    console.log(`[Store] addStreamToolCall: tool=${toolCall.toolName}, total=${updatedToolCalls.length}, sessionId=${state.activeSessionId}`);
     
     return {
       sessions: updatedSessions,
@@ -709,6 +718,8 @@ export const useStore = create<AppState>((set, get) => ({
     if (!state.activeSessionId) return state;
     
     const currentSession = state.sessions[state.activeSessionId];
+    if (!currentSession) return state;
+    
     const updatedToolCalls = currentSession.streamToolCalls.map((tc) =>
       tc.id === toolCallId ? { ...tc, ...updates } : tc
     );
@@ -731,6 +742,8 @@ export const useStore = create<AppState>((set, get) => ({
     if (!state.activeSessionId) return state;
     
     const currentSession = state.sessions[state.activeSessionId];
+    if (!currentSession) return state;
+    
     const updatedThinking = currentSession.streamThinking + thinking;
     
     const updatedSessions = {

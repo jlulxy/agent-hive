@@ -269,12 +269,29 @@ export interface StateSnapshotEvent extends BaseEvent {
   };
 }
 
+// Session Created Event
+export interface SessionCreatedEvent extends BaseEvent {
+  type: EventType.SESSION_CREATED;
+  session_id: string;
+}
+
 // Tool Call Events
 export interface ToolCallStartEvent extends BaseEvent {
   type: EventType.TOOL_CALL_START;
   tool_call_id: string;
   tool_call_name: string;
   parent_message_id?: string;  // agent_id
+}
+
+export interface ToolCallArgsEvent extends BaseEvent {
+  type: EventType.TOOL_CALL_ARGS;
+  tool_call_id: string;
+  delta: string;
+}
+
+export interface ToolCallEndEvent extends BaseEvent {
+  type: EventType.TOOL_CALL_END;
+  tool_call_id: string;
 }
 
 export interface ToolCallResultEvent extends BaseEvent {
@@ -302,6 +319,7 @@ export type AguiEvent =
   | RunStartedEvent
   | RunFinishedEvent
   | RunErrorEvent
+  | SessionCreatedEvent
   | TextMessageStartEvent
   | TextMessageContentEvent
   | TextMessageEndEvent
@@ -315,6 +333,8 @@ export type AguiEvent =
   | PlanGeneratedEvent
   | RoleEmergedEvent
   | ToolCallStartEvent
+  | ToolCallArgsEvent
+  | ToolCallEndEvent
   | ToolCallResultEvent
   | SessionStateChangedEvent
   | HeartbeatEvent

@@ -5,13 +5,12 @@
  */
 
 import { useState, useEffect } from 'react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { AnimatePresence } from 'framer-motion';
 import { Users, Activity, Zap } from 'lucide-react';
 import { useStore } from '../../store';
 import { useAgui } from '../../hooks/useAgui';
 import { AgentCard } from './AgentCard';
 import { AgentStatus } from '../../types/agui';
-import { cn } from '../../utils/cn';
 
 export function AgentPanorama() {
   const { agents, sessionId } = useStore();

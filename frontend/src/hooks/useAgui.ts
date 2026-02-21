@@ -19,15 +19,13 @@ import {
   EventType,
   AguiEvent,
   AgentStatus,
-  Agent,
-  RelayMessage,
   StateSnapshotEvent,
-  SessionStateChangedEvent,
 } from '../types/agui';
 
 export function useAgui() {
   const eventSourceRef = useRef<EventSource | null>(null);
   const subscriptionEventSourceRef = useRef<EventSource | null>(null);  // 新增：订阅连接
+  const abortControllerRef = useRef<AbortController | null>(null);  // 用于取消 POST 流
   const [isSubscribing, setIsSubscribing] = useState(false);  // 新增：订阅状态
   
   const {
@@ -86,6 +84,9 @@ export function useAgui() {
     
     // 从事件中提取 session_id（某些事件可能有这个字段）
     const eventSessionId = (event as any).session_id || targetSessionId;
+    
+    // 全事件日志（调试用）
+    console.log(`[useAgui] handleEvent: type=${event.type}, eventSessionId=${eventSessionId}, activeSessionId=${activeSessionId}`);
     
     // 【核心逻辑】会话隔离校验
     // 如果事件明确属于某个会话，且该会话不是当前活跃会话，则跳过
@@ -241,8 +242,12 @@ export function useAgui() {
         const agentIdForTool = tcStart.parent_message_id || '';
         
         // 检查是否是已知 agent 发起的 tool call（涌现模式）
-        const { agents: currentAgents } = useStore.getState().sessions[useStore.getState().activeSessionId || ''] || { agents: {} };
-        const isAgentToolCall = agentIdForTool && currentAgents[agentIdForTool];
+        const storeState = useStore.getState();
+        const activeSession = storeState.sessions[storeState.activeSessionId || ''];
+        const currentAgentsForTool = activeSession?.agents || {};
+        const isAgentToolCall = agentIdForTool && currentAgentsForTool[agentIdForTool];
+        
+        console.log(`[useAgui] TOOL_CALL_START: tool=${tcStart.tool_call_name}, parentMsgId=${agentIdForTool}, isAgentToolCall=${!!isAgentToolCall}, activeSessionId=${storeState.activeSessionId}, sessionExists=${!!activeSession}`);
         
         if (isAgentToolCall) {
           // 涌现模式：只添加到 Agent 级别
@@ -255,6 +260,7 @@ export function useAgui() {
           });
         } else {
           // 普通模式：添加到消息流级别
+          console.log(`[useAgui] Adding stream tool call: ${tcStart.tool_call_name} (id=${tcStart.tool_call_id})`);
           addStreamToolCall({
             id: tcStart.tool_call_id,
             toolName: tcStart.tool_call_name,
@@ -262,6 +268,10 @@ export function useAgui() {
             status: 'running',
             startedAt: event.timestamp,
           });
+          // 验证写入后的状态
+          const afterState = useStore.getState();
+          const afterSession = afterState.sessions[afterState.activeSessionId || ''];
+          console.log(`[useAgui] After addStreamToolCall: streamToolCalls.length=${afterSession?.streamToolCalls?.length}, topLevel=${afterState.streamToolCalls?.length}`);
         }
         break;
       }
@@ -311,8 +321,12 @@ export function useAgui() {
       case EventType.AGENT_THINKING: {
         const thinkEvent = event as any;
         // 检查是否是已知 agent 的 thinking（涌现模式）
-        const { agents: thinkAgents } = useStore.getState().sessions[useStore.getState().activeSessionId || ''] || { agents: {} };
+        const thinkStoreState = useStore.getState();
+        const thinkSession = thinkStoreState.sessions[thinkStoreState.activeSessionId || ''];
+        const thinkAgents = thinkSession?.agents || {};
         const isAgentThinking = thinkEvent.agent_id && thinkAgents[thinkEvent.agent_id];
+        
+        console.log(`[useAgui] AGENT_THINKING: agentId=${thinkEvent.agent_id}, isAgentThinking=${!!isAgentThinking}, thinkingLen=${thinkEvent.thinking?.length}`);
         
         if (isAgentThinking) {
           // 涌现模式：只更新 Agent 级别
@@ -320,6 +334,8 @@ export function useAgui() {
         } else {
           // 普通模式：更新消息流级别
           appendStreamThinking(thinkEvent.thinking);
+          const afterThinkState = useStore.getState();
+          console.log(`[useAgui] After appendStreamThinking: topLevel len=${afterThinkState.streamThinking?.length}`);
         }
         break;
       }
@@ -367,20 +383,29 @@ export function useAgui() {
       setTask(task);
       setStoreMode(mode as 'emergent' | 'direct');
     } else {
-      // 新任务：后端会创建会话，这里先设置 PLANNING 状态
-      // 不要调用 reset()，等待后端 SESSION_CREATED 事件来创建会话
-      // 清理当前的临时会话 ID（如果是自动生成的本地会话）
-      const { sessionId: currentId, closeSession: closeLocalSession } = useStore.getState();
-      if (currentId && currentId.startsWith('session-')) {
-        // 这是前端自动生成的临时会话，关闭它
-        closeLocalSession(currentId);
-      }
+      // 新任务：后端会创建会话，这里不做任何清理
+      // 等待后端 SESSION_CREATED 事件来创建新会话并自动切换
+      // 注意：不要在这里关闭临时会话，否则 activeSessionId 变 null，
+      // 后续事件（在 SESSION_CREATED 之前的 RUN_STARTED 等）会因 activeSessionId 为空被丢弃
     }
 
-    // 关闭之前的连接
+    // 关闭之前的所有连接（包括 POST 流、EventSource、订阅流）
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
     }
+    // 直接关闭订阅连接，避免残留 SSE 流导致事件串会话
+    if (subscriptionEventSourceRef.current) {
+      subscriptionEventSourceRef.current.close();
+      subscriptionEventSourceRef.current = null;
+    }
+
+    // 创建新的 AbortController 用于取消本次 POST 流
+    const abortController = new AbortController();
+    abortControllerRef.current = abortController;
 
     try {
       // 发起 POST 请求获取 SSE 流
@@ -397,6 +422,7 @@ export function useAgui() {
           session_id: existingSessionId,  // 可选：传入已有会话 ID
           mode,  // emergent(涌现模式) / direct(普通模式)
         }),
+        signal: abortController.signal,
       });
 
       if (!response.ok) {
@@ -410,36 +436,63 @@ export function useAgui() {
 
       const decoder = new TextDecoder();
       let buffer = '';
+      // 追踪当前 POST 流关联的 session_id，确保事件绑定到正确的会话
+      let streamSessionId: string | undefined = existingSessionId;
+      // SSE 解析状态 — 跨 reader.read() 持久化，防止事件跨 TCP 包时丢失
+      let currentEvent = '';
+      let currentData = '';
 
       while (true) {
         const { done, value } = await reader.read();
-        if (done) break;
+        if (done) {
+          console.log('[SSE Parse] Stream done. Remaining buffer:', buffer ? `"${buffer}"` : '(empty)');
+          break;
+        }
 
-        buffer += decoder.decode(value, { stream: true });
+        const chunk = decoder.decode(value, { stream: true });
+        console.log(`[SSE Parse] reader.read() chunk (${chunk.length} chars):`, chunk.length > 200 ? chunk.slice(0, 200) + '...' : chunk);
+        buffer += chunk;
         
         // 解析 SSE 事件
         const lines = buffer.split('\n');
         buffer = lines.pop() || '';
 
-        let currentEvent = '';
-        let currentData = '';
-
         for (const line of lines) {
           if (line.startsWith('event: ')) {
             currentEvent = line.slice(7);
+            console.log(`[SSE Parse] Got event line: "${currentEvent}"`);
           } else if (line.startsWith('data: ')) {
             currentData = line.slice(6);
+            console.log(`[SSE Parse] Got data line for event: "${currentEvent}", data length: ${currentData.length}`);
           } else if (line === '' && currentEvent && currentData) {
+            console.log(`[SSE Parse] Complete event: "${currentEvent}", dispatching to handleEvent`);
             const event = parseEvent(currentEvent, currentData);
             if (event) {
-              handleEvent(event);
+              // 从 SESSION_CREATED 事件中提取 session_id
+              if (currentEvent === 'SESSION_CREATED' || (event as any).type === EventType.SESSION_CREATED) {
+                streamSessionId = (event as any).session_id;
+              }
+              // 始终传递 streamSessionId 确保事件会话隔离
+              handleEvent(event, streamSessionId);
+            } else {
+              console.error(`[SSE Parse] parseEvent returned null for: "${currentEvent}"`);
             }
             currentEvent = '';
             currentData = '';
+          } else if (line === '' && (!currentEvent || !currentData)) {
+            // 空行但没有完整的 event+data 对
+            if (currentEvent || currentData) {
+              console.warn(`[SSE Parse] Incomplete event at empty line: event="${currentEvent}", hasData=${!!currentData}`);
+            }
           }
         }
       }
     } catch (error) {
+      // 如果是主动取消（切换会话或新任务），不设为失败
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        console.log('[useAgui] Task stream aborted (new task or session switch)');
+        return;
+      }
       console.error('Task execution error:', error);
       setStatus(AgentStatus.FAILED);
       setError(error instanceof Error ? error.message : 'Unknown error');
@@ -761,7 +814,7 @@ export function useAgui() {
       });
       
       // 处理心跳事件
-      eventSource.addEventListener('HEARTBEAT', (e: MessageEvent) => {
+      eventSource.addEventListener('HEARTBEAT', (_e: MessageEvent) => {
         console.debug(`[useAgui] Heartbeat received for session: ${sessionId}`);
       });
       
@@ -975,6 +1028,11 @@ export function useAgui() {
    * 停止执行
    */
   const stop = useCallback(() => {
+    // 取消 POST 流
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      abortControllerRef.current = null;
+    }
     if (eventSourceRef.current) {
       eventSourceRef.current.close();
       eventSourceRef.current = null;

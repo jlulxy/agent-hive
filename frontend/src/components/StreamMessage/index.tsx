@@ -1,7 +1,8 @@
 /**
  * 流式消息组件
  * 
- * 实时显示消息、工具调用过程和模型思考过程
+ * 按轮次分组显示：每轮的思考过程 + 工具调用 + 模型回答聚在一起
+ * 当前正在流式传输的 thinking/toolCalls 显示在消息列表末尾
  */
 
 import { useRef, useEffect, useState } from 'react';
@@ -69,7 +70,6 @@ function ToolCallCard({ toolCall, index }: { toolCall: AgentToolCall; index: num
               </span>
             )}
           </div>
-          {/* 行内摘要预览 */}
           {toolCall.summary && !expanded && (
             <p className="text-[11px] text-dark-400 truncate mt-0.5">{toolCall.summary}</p>
           )}
@@ -124,12 +124,76 @@ function ToolCallCard({ toolCall, index }: { toolCall: AgentToolCall; index: num
   );
 }
 
+/** 渲染一轮的思考过程块 */
+function TurnThinkingBlock({ thinking, defaultExpanded = false }: { thinking: string; defaultExpanded?: boolean }) {
+  const [expanded, setExpanded] = useState(defaultExpanded);
+  
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl bg-purple-500/5 border border-purple-500/20 overflow-hidden"
+    >
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="w-full p-3 flex items-center justify-between hover:bg-purple-500/5 transition-colors"
+      >
+        <div className="flex items-center gap-2">
+          <Brain className="w-4 h-4 text-purple-400" />
+          <span className="text-sm font-medium text-purple-300">模型思考过程</span>
+          <span className="text-xs text-dark-400">
+            {thinking.length} 字符
+          </span>
+        </div>
+        {expanded ? (
+          <ChevronUp className="w-4 h-4 text-dark-400" />
+        ) : (
+          <ChevronDown className="w-4 h-4 text-dark-400" />
+        )}
+      </button>
+      <AnimatePresence>
+        {expanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="border-t border-purple-500/20"
+          >
+            <div className="p-3 max-h-64 overflow-y-auto">
+              <pre className="text-xs text-purple-200/70 whitespace-pre-wrap font-mono">
+                {thinking}
+              </pre>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </motion.div>
+  );
+}
+
+/** 渲染一轮的工具调用块 */
+function TurnToolCallsBlock({ toolCalls }: { toolCalls: AgentToolCall[] }) {
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center gap-2 mb-1">
+        <Wrench className="w-3.5 h-3.5 text-cyan-400" />
+        <span className="text-xs font-medium text-dark-400">
+          Skills 使用 ({toolCalls.length})
+        </span>
+      </div>
+      {toolCalls.map((tc, i) => (
+        <ToolCallCard key={tc.id} toolCall={tc} index={i} />
+      ))}
+    </div>
+  );
+}
+
 export function StreamMessage() {
   const { messages, agents, streamToolCalls, streamThinking, mode } = useStore();
   const scrollRef = useRef<HTMLDivElement>(null);
   const [autoScroll, setAutoScroll] = useState(true);
   const [expandedAgents, setExpandedAgents] = useState<Set<string>>(new Set());
-  const [thinkingExpanded, setThinkingExpanded] = useState(true);
 
   // 自动滚动到底部
   useEffect(() => {
@@ -160,8 +224,8 @@ export function StreamMessage() {
   const agentList = Object.values(agents);
   const isDirectMode = mode === 'direct';
 
-  // 调试日志
-  console.log(`[StreamMessage] Render: mode=${mode}, streamToolCalls.length=${streamToolCalls.length}, streamThinking.length=${streamThinking.length}, agentList.length=${agentList.length}, messages.length=${messages.length}`);
+  // 判断当前是否有正在流式传输的内容（还没被收割到 message 上的）
+  const hasLiveStreaming = agentList.length === 0 && (streamThinking || streamToolCalls.length > 0);
 
   return (
     <div className="h-full flex flex-col">
@@ -173,106 +237,71 @@ export function StreamMessage() {
         </h2>
       </div>
 
-      {/* 消息区域 */}
+      {/* 消息区域 - 按轮次分组 */}
       <div
         ref={scrollRef}
         onScroll={handleScroll}
         className="flex-1 overflow-y-auto p-4 space-y-4"
       >
-      {/* 思考过程（没有 agent 时显示，即 direct 模式和 emergent 模式无 subagent 时均显示） */}
-        {streamThinking && agentList.length === 0 && (
-          <motion.div
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="rounded-xl bg-purple-500/5 border border-purple-500/20 overflow-hidden"
-          >
-            <button
-              onClick={() => setThinkingExpanded(!thinkingExpanded)}
-              className="w-full p-3 flex items-center justify-between hover:bg-purple-500/5 transition-colors"
-            >
-              <div className="flex items-center gap-2">
-                <Brain className="w-4 h-4 text-purple-400" />
-                <span className="text-sm font-medium text-purple-300">模型思考过程</span>
-                <span className="text-xs text-dark-400">
-                  {streamThinking.length} 字符
-                </span>
-              </div>
-              {thinkingExpanded ? (
-                <ChevronUp className="w-4 h-4 text-dark-400" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-dark-400" />
-              )}
-            </button>
-            <AnimatePresence>
-              {thinkingExpanded && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="border-t border-purple-500/20"
-                >
-                  <div className="p-3 max-h-64 overflow-y-auto">
-                    <pre className="text-xs text-purple-200/70 whitespace-pre-wrap font-mono">
-                      {streamThinking}
-                    </pre>
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </motion.div>
-        )}
-
-        {/* Skills 使用过程（没有 agent 时显示，即 direct 模式和 emergent 模式无 subagent 时均显示） */}
-        {streamToolCalls.length > 0 && agentList.length === 0 && (
-          <div className="space-y-1.5">
-            <div className="flex items-center gap-2 mb-1">
-              <Wrench className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-xs font-medium text-dark-400">
-                Skills 使用 ({streamToolCalls.length})
-              </span>
-            </div>
-            {streamToolCalls.map((tc, i) => (
-              <ToolCallCard key={tc.id} toolCall={tc} index={i} />
-            ))}
-          </div>
-        )}
-
-        {/* 系统消息 */}
+        {/* 按轮次渲染消息：每条 assistant 消息前面显示关联的 thinking + toolCalls */}
         <AnimatePresence mode="popLayout">
           {messages.map((msg) => (
-            <motion.div
-              key={msg.id}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              className={cn(
-                'p-4 rounded-xl',
-                msg.role === 'assistant' && 'bg-dark-800/50 border border-dark-700',
-                msg.role === 'user' && 'bg-primary-500/10 border border-primary-500/30',
+            <div key={msg.id} className="space-y-3">
+              {/* 该轮的思考过程（仅 assistant 消息且有 turnThinking） */}
+              {msg.role === 'assistant' && msg.turnThinking && agentList.length === 0 && (
+                <TurnThinkingBlock thinking={msg.turnThinking} />
               )}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <div className={cn(
-                  'w-6 h-6 rounded-full flex items-center justify-center',
-                  msg.role === 'assistant' ? 'bg-dark-700' : 'bg-primary-500/20'
-                )}>
-                  {msg.role === 'assistant' ? (
-                    <Bot className="w-3.5 h-3.5 text-dark-300" />
-                  ) : (
-                    <span className="text-xs text-primary-400">U</span>
-                  )}
+
+              {/* 该轮的工具调用（仅 assistant 消息且有 turnToolCalls） */}
+              {msg.role === 'assistant' && msg.turnToolCalls && msg.turnToolCalls.length > 0 && agentList.length === 0 && (
+                <TurnToolCallsBlock toolCalls={msg.turnToolCalls} />
+              )}
+
+              {/* 消息内容 */}
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                className={cn(
+                  'p-4 rounded-xl',
+                  msg.role === 'assistant' && 'bg-dark-800/50 border border-dark-700',
+                  msg.role === 'user' && 'bg-primary-500/10 border border-primary-500/30',
+                )}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <div className={cn(
+                    'w-6 h-6 rounded-full flex items-center justify-center',
+                    msg.role === 'assistant' ? 'bg-dark-700' : 'bg-primary-500/20'
+                  )}>
+                    {msg.role === 'assistant' ? (
+                      <Bot className="w-3.5 h-3.5 text-dark-300" />
+                    ) : (
+                      <span className="text-xs text-primary-400">U</span>
+                    )}
+                  </div>
+                  <span className="text-sm font-medium text-dark-300">
+                    {msg.role === 'assistant' ? 'Master Agent' : 'You'}
+                  </span>
                 </div>
-                <span className="text-sm font-medium text-dark-300">
-                  {msg.role === 'assistant' ? 'Master Agent' : 'You'}
-                </span>
-              </div>
-              <div className="text-sm text-dark-200 whitespace-pre-wrap">
-                {msg.content}
-              </div>
-            </motion.div>
+                <div className="text-sm text-dark-200 whitespace-pre-wrap">
+                  {msg.content}
+                </div>
+              </motion.div>
+            </div>
           ))}
         </AnimatePresence>
+
+        {/* 当前正在流式传输的 thinking/toolCalls（还没被收割到 message 上的，显示在末尾） */}
+        {hasLiveStreaming && (
+          <div className="space-y-3">
+            {streamThinking && (
+              <TurnThinkingBlock thinking={streamThinking} defaultExpanded={true} />
+            )}
+            {streamToolCalls.length > 0 && (
+              <TurnToolCallsBlock toolCalls={streamToolCalls} />
+            )}
+          </div>
+        )}
 
         {/* Agent 工作过程（涌现模式，普通模式下隐藏） */}
         {agentList.length > 0 && !isDirectMode && (

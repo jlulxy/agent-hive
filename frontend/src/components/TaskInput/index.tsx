@@ -29,13 +29,13 @@ export function TaskInput() {
   const [isStopping, setIsStopping] = useState(false);
   const [isSendingInstruction, setIsSendingInstruction] = useState(false);
   const { executeTask, intervene, stop } = useAgui();
-  const { status, sessionId, setStatus, setMode: setStoreMode, agents, finalReport, mode: storeMode } = useStore();
+  const { status, sessionId, setStatus, setMode: setStoreMode, agents, mode: storeMode } = useStore();
 
   const isRunning = status === AgentStatus.RUNNING || status === AgentStatus.PLANNING;
   const hasAgents = Object.keys(agents).length > 0;
   const isDirectMode = storeMode === 'direct';
-  // 追问检测：已完成/取消/失败且有历史报告
-  const isFollowupReady = !isRunning && !!finalReport && 
+  // 追问检测：已完成/取消/失败（无需 finalReport 也可追问，普通模式不产生 finalReport）
+  const isFollowupReady = !isRunning && !!sessionId &&
     (status === AgentStatus.COMPLETED || status === AgentStatus.CANCELLED || status === AgentStatus.FAILED);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -102,7 +102,7 @@ export function TaskInput() {
   };
 
   return (
-    <div className="p-6 border-b border-dark-700 bg-dark-900/50">
+    <div className="p-6 border-t border-dark-700 bg-dark-900/50 flex-shrink-0">
       {isRunning ? (
         /* ========== 运行态：停止按钮始终显示，指令输入+下发按钮在 Agent 涌现后出现 ========== */
         <div className="space-y-4">

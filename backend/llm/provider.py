@@ -21,13 +21,15 @@ class LLMMessage(BaseModel):
     def to_api_dict(self) -> Dict[str, Any]:
         """序列化为 API 请求格式，处理空 content 兼容性问题。
         
-        Claude API 不允许 assistant 消息同时有 tool_calls 和空 content，
-        此方法确保这种情况下 content 字段被排除。
+        Venus/OpenAI 兼容 API 要求每条消息 content 字段必须存在且非空。
+        当 assistant 消息有 tool_calls 但 content 为空时，
+        需要填充一个占位文本以通过 API 校验。
         """
         d = self.model_dump(exclude_none=True)
-        # assistant 消息有 tool_calls 时，空 content 会导致 Claude 报错
+        # assistant 消息有 tool_calls 时，确保 content 非空
+        # Venus API 要求 content 字段必须存在且非空（不同于 OpenAI 原生 API 接受 null）
         if self.role == "assistant" and self.tool_calls and not self.content:
-            d.pop("content", None)
+            d["content"] = "Calling tools..."
         return d
 
 
@@ -96,7 +98,11 @@ class OpenAIProvider(LLMProvider):
         if tools:
             request_params["tools"] = tools
         
-        stream = await self.client.chat.completions.create(**request_params)
+        try:
+            stream = await self.client.chat.completions.create(**request_params)
+        except Exception as e:
+            print(f"[OpenAIProvider] Stream chat error: {type(e).__name__}: {e}")
+            raise
         
         async for chunk in stream:
             # 检查 choices 是否为空
@@ -128,6 +134,16 @@ class OpenAIProvider(LLMProvider):
             request_params["tools"] = tools
         
         print(f"[OpenAIProvider] chat_complete request: model={config.model}, temp={config.temperature}")
+        
+        # 调试：打印消息概要
+        api_messages = request_params["messages"]
+        for idx, m in enumerate(api_messages):
+            role = m.get("role", "?")
+            has_content = "content" in m
+            content_val = m.get("content")
+            content_info = f"None" if content_val is None else f"len={len(content_val)}" if content_val else "empty"
+            has_tc = "tool_calls" in m
+            print(f"  [{idx}] role={role}, content={content_info}, has_tc={has_tc}")
         
         try:
             response = await self.client.chat.completions.create(**request_params)
@@ -180,6 +196,76 @@ class ClaudeProvider(LLMProvider):
             api_key=api_key or os.getenv("ANTHROPIC_API_KEY")
         )
     
+    def _build_claude_messages(self, messages: List[LLMMessage]):
+        """将 LLMMessage 列表转换为 Claude API 格式
+        
+        处理：
+        - system 消息提取为独立字段
+        - assistant(tool_calls) → assistant content blocks (tool_use)
+        - tool 消息 → user content blocks (tool_result)
+        - 合并连续的 tool_result 消息到同一个 user message
+        
+        Returns:
+            (system_content, chat_messages) 元组
+        """
+        system_content = ""
+        chat_messages = []
+        
+        i = 0
+        while i < len(messages):
+            msg = messages[i]
+            
+            if msg.role == "system":
+                system_content = msg.content
+                i += 1
+                continue
+            
+            if msg.role == "assistant" and msg.tool_calls:
+                # assistant 消息包含 tool_calls → 转换为 Claude 格式的 content blocks
+                content_blocks = []
+                if msg.content:
+                    content_blocks.append({"type": "text", "text": msg.content})
+                for tc in msg.tool_calls:
+                    import json as _json
+                    tool_input = tc["function"]["arguments"]
+                    if isinstance(tool_input, str):
+                        try:
+                            tool_input = _json.loads(tool_input)
+                        except _json.JSONDecodeError:
+                            tool_input = {"raw": tool_input}
+                    content_blocks.append({
+                        "type": "tool_use",
+                        "id": tc["id"],
+                        "name": tc["function"]["name"],
+                        "input": tool_input,
+                    })
+                chat_messages.append({"role": "assistant", "content": content_blocks})
+                i += 1
+                continue
+            
+            if msg.role == "tool":
+                # tool 消息 → 转换为 user message 的 tool_result content blocks
+                # 合并连续的 tool 消息
+                tool_results = []
+                while i < len(messages) and messages[i].role == "tool":
+                    tool_results.append({
+                        "type": "tool_result",
+                        "tool_use_id": messages[i].tool_call_id,
+                        "content": messages[i].content,
+                    })
+                    i += 1
+                chat_messages.append({"role": "user", "content": tool_results})
+                continue
+            
+            # 普通 user/assistant 消息
+            chat_messages.append({
+                "role": msg.role,
+                "content": msg.content
+            })
+            i += 1
+        
+        return system_content, chat_messages
+    
     async def chat(
         self,
         messages: List[LLMMessage],
@@ -187,18 +273,7 @@ class ClaudeProvider(LLMProvider):
         tools: Optional[List[Dict[str, Any]]] = None
     ) -> AsyncGenerator[str, None]:
         """流式聊天"""
-        # 提取 system message
-        system_content = ""
-        chat_messages = []
-        
-        for msg in messages:
-            if msg.role == "system":
-                system_content = msg.content
-            else:
-                chat_messages.append({
-                    "role": msg.role,
-                    "content": msg.content
-                })
+        system_content, chat_messages = self._build_claude_messages(messages)
         
         request_params = {
             "model": config.model,
@@ -210,7 +285,6 @@ class ClaudeProvider(LLMProvider):
             request_params["system"] = system_content
         
         if tools:
-            # 转换 OpenAI 格式的 tools 到 Claude 格式
             claude_tools = self._convert_tools(tools)
             request_params["tools"] = claude_tools
         
@@ -225,18 +299,7 @@ class ClaudeProvider(LLMProvider):
         tools: Optional[List[Dict[str, Any]]] = None
     ) -> Dict[str, Any]:
         """非流式聊天"""
-        # 提取 system message
-        system_content = ""
-        chat_messages = []
-        
-        for msg in messages:
-            if msg.role == "system":
-                system_content = msg.content
-            else:
-                chat_messages.append({
-                    "role": msg.role,
-                    "content": msg.content
-                })
+        system_content, chat_messages = self._build_claude_messages(messages)
         
         request_params = {
             "model": config.model,

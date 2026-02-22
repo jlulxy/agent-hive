@@ -138,10 +138,11 @@ async def execute_task_stream(request: TaskRequest, user_id: Optional[str] = Dep
             
             # 3. 更新 SessionInfo 的 task 为新任务
             session_info.task = request.task
+            session_info.status = "active"
             
             # 4. Cleanup 旧 Agent、创建新 MasterAgent（串行，避免竞态）
             if request.mode == "direct":
-                # Direct 模式暂不支持追问角色复用
+                # Direct 模式：复用已有 DirectAgent（保留 conversation_history 实现多轮对话）
                 agent = session_manager.get_or_create_direct_agent(
                     session_id=session_id,
                     provider=request.provider,

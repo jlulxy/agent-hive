@@ -52,6 +52,20 @@ DIRECT_AGENT_SYSTEM_PROMPT = """你是一个强大的 AI 助手，具备以下�
 - 必要时主动调用工具获取信息，尤其是需要实时数据时（如股价、新闻、最新资讯等），务必调用 web-search 工具
 - 使用 Markdown 格式组织输出
 - 提供有深度和实用价值的回答
+- **重要**：当你决定调用工具时，必须在调用前用简短的文字说明你的思考过程和行动计划（例如："让我先搜索一下最新的相关信息..."）。这段文字会作为"模型思考过程"展示给用户，帮助用户理解你的推理链路。
+
+## 多轮对话
+你正处于一个连续的多轮对话中。对话历史包含了之前所有轮次的完整信息，包括：
+- 用户的每一轮提问
+- 你的回复内容
+- 你调用过的工具及其返回的原始数据
+
+**重要规则：**
+1. **主动引用历史**：回答追问时，应主动引用你之前回复中的关键信息（如具体数据、列表项、结论等），用"正如我之前提到的..."或"基于前面讨论的..."等方式建立连贯性，让用户感受到你完整记得对话内容。
+2. **精确指代解析**：当用户使用代词（"它"、"那个"、"后者"）、序号引用（"第3个"、"第一本"）或回指表达（"你刚说的"、"上面的"）时，必须回溯对话历史精确定位指代对象，不可猜测或泛泛回答。
+3. **递进式展开**：当用户在前几轮讨论的基础上深入追问时，应在前文基础上递进展开，避免重复已讲过的基础概念，体现对话的层层深入。
+4. **纠错后认知更新**：如果用户纠正了你的某个回答，你应明确承认并修正，后续回复中必须使用修正后的正确信息，不可重复错误。
+5. **工具结果复用**：利用之前工具调用获取的原始数据来丰富追问的回答，优先使用历史中已有的工具结果，必要时再发起新的工具调用补充信息。
 
 ## 引用与来源
 如果你使用了搜索工具获取信息，**必须**在回复末尾列出参考来源链接。格式如下：
@@ -200,7 +214,6 @@ class DirectAgent:
             session.status = AgentStatus.RUNNING
             
             message_id = f"direct-{run_id}"
-            yield TextMessageStartEvent(message_id=message_id, role="assistant")
             
             full_response = ""
             max_tool_rounds = 5
@@ -317,6 +330,10 @@ class DirectAgent:
                             tool_call_id=tool_call_id,
                         ))
             
+            # 在工具调用循环结束后再发出 TEXT_MESSAGE_START
+            # 这样前端 addMessage 收割时，streamThinking 和 streamToolCalls 已经积累完毕
+            yield TextMessageStartEvent(message_id=message_id, role="assistant")
+            
             # 最终文本回复：始终用流式输出
             print(f"[DirectAgent] Final streaming response...")
             async for chunk in self.provider.chat(messages, self.llm_config):
@@ -328,13 +345,27 @@ class DirectAgent:
             
             yield TextMessageEndEvent(message_id=message_id)
             
-            # 更新对话历史
-            self.conversation_history.append(LLMMessage(role="user", content=task))
-            self.conversation_history.append(LLMMessage(role="assistant", content=full_response))
+            # ===== 更新对话历史（完整保存 tool calling 链）=====
+            # 从 messages 中提取本轮产生的所有消息（跳过 system 和之前的 history）
+            history_start_idx = 1 + len(self.conversation_history)  # 1 for system prompt
+            new_messages = messages[history_start_idx:]  # user + assistant(tool_calls) + tool results...
             
-            # 保持对话历史在合理长度
-            if len(self.conversation_history) > 20:
-                self.conversation_history = self.conversation_history[-16:]
+            for msg in new_messages:
+                if msg.role == "tool" and msg.content and len(msg.content) > 1500:
+                    # 裁剪过长的工具结果，保留关键信息
+                    msg = LLMMessage(
+                        role=msg.role,
+                        content=msg.content[:1500] + "\n...(结果已截取前1500字符)",
+                        tool_call_id=msg.tool_call_id,
+                    )
+                self.conversation_history.append(msg)
+            
+            # 追加最终的流式回复（如果 tool calling 循环产生了结果，最后的流式回复也要保存）
+            if full_response.strip():
+                self.conversation_history.append(LLMMessage(role="assistant", content=full_response))
+            
+            # 智能裁剪：基于对话轮次，保留最近 N 轮完整对话
+            self._trim_conversation_history(max_rounds=6)
             
             session.status = AgentStatus.COMPLETED
             session.final_report = full_response
@@ -423,6 +454,78 @@ class DirectAgent:
             return [task_desc]
         return None
     
+    def _trim_conversation_history(self, max_rounds: int = 6):
+        """基于对话轮次的智能裁剪，同时考虑 token 预算
+        
+        一个"轮次"从 user 消息开始，包含后续所有 assistant/tool 消息，直到下一个 user 消息。
+        
+        裁剪策略：
+        1. 基础裁剪：保留最近 max_rounds 轮
+        2. Token 预算裁剪：估算总字符数，若超过阈值则进一步缩减轮次
+        
+        Args:
+            max_rounds: 保留的最大轮次数
+        """
+        if not self.conversation_history:
+            return
+        
+        # 找到每一轮的起始位置（user 消息的索引）
+        round_starts = []
+        for i, msg in enumerate(self.conversation_history):
+            if msg.role == "user":
+                round_starts.append(i)
+        
+        # 基础裁剪：按轮次
+        if len(round_starts) > max_rounds:
+            trim_from = round_starts[-max_rounds]
+            old_len = len(self.conversation_history)
+            self.conversation_history = self.conversation_history[trim_from:]
+            print(f"[DirectAgent] Trimmed by rounds: {old_len} -> {len(self.conversation_history)} messages "
+                  f"(kept {max_rounds} rounds)")
+            
+            # 重新计算 round_starts
+            round_starts = [i for i, m in enumerate(self.conversation_history) if m.role == "user"]
+        
+        # Token 预算裁剪：估算总字符数（粗略 1 中文字 ≈ 2 token, 1 英文词 ≈ 1.3 token）
+        # 对话历史的 token 预算设为约 12K token（约 24K 中文字符）
+        MAX_HISTORY_CHARS = 24000
+        total_chars = sum(len(m.content or "") for m in self.conversation_history)
+        
+        while total_chars > MAX_HISTORY_CHARS and len(round_starts) > 2:
+            # 移除最早的一轮
+            next_round_start = round_starts[1] if len(round_starts) > 1 else len(self.conversation_history)
+            removed_chars = sum(len(m.content or "") for m in self.conversation_history[:next_round_start])
+            self.conversation_history = self.conversation_history[next_round_start:]
+            total_chars -= removed_chars
+            round_starts = [i for i, m in enumerate(self.conversation_history) if m.role == "user"]
+            print(f"[DirectAgent] Trimmed by token budget: removed oldest round, "
+                  f"remaining chars ≈ {total_chars}")
+    
+    def extract_session_summary(self) -> Dict[str, Any]:
+        """提取会话摘要（追问支持，兼容 MasterAgent 接口）"""
+        # 从最近的 session 中提取 final_report
+        final_report = ""
+        for session in self.sessions.values():
+            if session.final_report:
+                final_report = session.final_report
+        
+        # 如果 session 中没有，从对话历史中提取最后一条 assistant 纯文本回复
+        if not final_report and self.conversation_history:
+            # 只取 content 非空且没有 tool_calls 的 assistant 消息（即最终回复，而非中间 tool calling 消息）
+            assistant_msgs = [
+                m.content for m in self.conversation_history
+                if m.role == "assistant" and m.content and not m.tool_calls
+            ]
+            if assistant_msgs:
+                final_report = assistant_msgs[-1][:2000]
+        
+        return {
+            "final_report": final_report,
+            "plan": None,
+            "intervention_summary": None,
+            "roles": None,
+        }
+    
     def get_session_state(self, session_id: str) -> Optional[Dict[str, Any]]:
         """获取会话状态（兼容 MasterAgent 接口）"""
         if session_id not in self.sessions:
@@ -447,7 +550,7 @@ class DirectAgent:
             "model": self.model,
             "mode": "direct",
             "skills_count": len(self.skill_set.list_skills()),
-            "conversation_turns": len(self.conversation_history) // 2,
+            "conversation_turns": sum(1 for m in self.conversation_history if m.role == "user"),
         }
     
     def cleanup(self):

@@ -641,13 +641,31 @@ export const useStore = create<AppState>((set, get) => ({
       return state;
     }
     
-    const updatedMessages = [...currentSession.messages, message];
+    // 【按轮次收割】如果是 assistant 消息，把当前 streaming 缓冲区的 thinking/toolCalls 关联到这条消息
+    let enrichedMessage = message;
+    let updatedStreamThinking = currentSession.streamThinking;
+    let updatedStreamToolCalls = currentSession.streamToolCalls;
+    
+    if (message.role === 'assistant') {
+      enrichedMessage = {
+        ...message,
+        turnThinking: currentSession.streamThinking || undefined,
+        turnToolCalls: currentSession.streamToolCalls.length > 0 ? [...currentSession.streamToolCalls] : undefined,
+      };
+      // 收割后清空 streaming 缓冲区，为下一轮准备
+      updatedStreamThinking = '';
+      updatedStreamToolCalls = [];
+    }
+    
+    const updatedMessages = [...currentSession.messages, enrichedMessage];
     
     const updatedSessions = {
       ...state.sessions,
       [state.activeSessionId]: {
         ...currentSession,
         messages: updatedMessages,
+        streamThinking: updatedStreamThinking,
+        streamToolCalls: updatedStreamToolCalls,
         lastActiveAt: new Date().toISOString(),
       },
     };
@@ -655,6 +673,8 @@ export const useStore = create<AppState>((set, get) => ({
     return {
       sessions: updatedSessions,
       messages: updatedMessages,
+      streamThinking: updatedStreamThinking,
+      streamToolCalls: updatedStreamToolCalls,
     };
   }),
 
@@ -851,7 +871,7 @@ export const useStore = create<AppState>((set, get) => ({
     };
   }),
 
-  // 追问重置：清空 agents/relayStations/plan/error/streamToolCalls 但保留 messages 和 finalReport
+  // 追问重置：清空 agents/relayStations/plan/error 但保留 messages/finalReport/streamToolCalls/streamThinking
   resetSessionForFollowup: (sessionId) => set((state) => {
     if (!state.sessions[sessionId]) return state;
     
@@ -863,10 +883,8 @@ export const useStore = create<AppState>((set, get) => ({
       agents: {},
       relayStations: {},
       error: null,
-      streamToolCalls: [],
-      streamThinking: '',
       lastActiveAt: new Date().toISOString(),
-      // 保留 messages 和 finalReport 供 UI 展示历史
+      // 保留 messages/finalReport/streamToolCalls/streamThinking 供 UI 展示历史
     };
     
     const updatedSessions = {

@@ -453,15 +453,12 @@ export default function App() {
         <main className="flex-1 flex min-h-0">
           {/* 左侧主区域 */}
           <div className="flex-1 flex flex-col min-w-0">
-            {/* 任务输入 */}
-            <TaskInput />
-
             {/* 任务信息（涌现模式才显示） */}
             {plan && mode !== 'direct' && (
               <motion.div
                 initial={{ opacity: 0, y: -10 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="p-4 border-b border-dark-700 bg-dark-900/30"
+                className="p-4 border-b border-dark-700 bg-dark-900/30 flex-shrink-0"
               >
                 <h3 className="text-sm font-medium text-dark-300 mb-2">任务分析</h3>
                 <p className="text-sm text-dark-400 line-clamp-2">{plan.analysis}</p>
@@ -473,10 +470,13 @@ export default function App() {
               </motion.div>
             )}
 
-            {/* 消息流 */}
+            {/* 消息流（占满中间区域） */}
             <div className="flex-1 overflow-hidden">
               <StreamMessage />
             </div>
+
+            {/* 任务输入（固定在底部） */}
+            <TaskInput />
           </div>
 
           {/* 右侧面板（涌现模式才显示） */}

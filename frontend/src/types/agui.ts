@@ -409,6 +409,9 @@ export interface Message {
   role: 'assistant' | 'user' | 'system';
   content: string;
   timestamp: string;
+  // 按轮次关联的思考过程和工具调用（在 TEXT_MESSAGE_START 时从 stream 缓冲区"收割"）
+  turnThinking?: string;
+  turnToolCalls?: AgentToolCall[];
 }
 
 export interface TaskSession {

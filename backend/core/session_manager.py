@@ -58,8 +58,18 @@ class SessionInfo:
         return datetime.now() - self.last_active_at > timedelta(minutes=timeout_minutes)
     
     def has_history(self) -> bool:
-        """是否有历史任务结果（用于判断追问）"""
-        return self.final_report is not None and self.status in ("completed", "cancelled", "failed", "error")
+        """是否有历史任务结果（用于判断追问）
+        
+        对涌现模式要求 final_report 存在；
+        对普通模式只要求状态已完成（DirectAgent 保留对话历史，即使没有 final_report 也能追问）。
+        """
+        if self.status not in ("completed", "cancelled", "failed", "error"):
+            return False
+        # direct 模式：只要已完成就可以追问（DirectAgent 内部维护 conversation_history）
+        if self.mode == "direct":
+            return True
+        # emergent 模式：需要 final_report
+        return self.final_report is not None
     
     def to_dict(self) -> Dict[str, Any]:
         """转换为字典"""
@@ -418,7 +428,8 @@ class SessionManager:
                 created_at=now,
                 last_active_at=now,
                 provider=provider,
-                model=model
+                model=model,
+                mode="direct"
             )
             asyncio.create_task(self._persist_session(self._sessions[session_id]))
             logger.info(f"[SessionManager] Auto-created session (direct): {session_id[:8]}...")

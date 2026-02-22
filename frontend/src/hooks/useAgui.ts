@@ -120,6 +120,18 @@ export function useAgui() {
 
       case EventType.RUN_FINISHED:
         setStatus(AgentStatus.COMPLETED);
+        // 如果 finalReport 为空（普通模式），从消息历史拼一个摘要
+        // 这样后端追问时也能通过 has_history() 检测
+        {
+          const currentState = useStore.getState();
+          const activeSession = currentState.activeSessionId ? currentState.sessions[currentState.activeSessionId] : null;
+          if (activeSession && !activeSession.finalReport) {
+            const lastMessages = activeSession.messages.slice(-3).map(m => m.content).join('\n');
+            if (lastMessages) {
+              setFinalReport(lastMessages.slice(0, 2000));
+            }
+          }
+        }
         break;
 
       case EventType.RUN_ERROR:

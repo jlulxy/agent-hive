@@ -121,6 +121,7 @@ interface AppState {
   reset: () => void;
   resetSession: (sessionId: string) => void;
   resetSessionForFollowup: (sessionId: string) => void;
+  clearAllSessions: () => void;
 }
 
 
@@ -904,4 +905,22 @@ export const useStore = create<AppState>((set, get) => ({
       sessions: updatedSessions,
     };
   }),
+
+  // 清空所有会话数据（用户登出时调用）
+  clearAllSessions: () => set(() => ({
+    sessions: {},
+    activeSessionId: null,
+    sessionId: null,
+    task: '',
+    status: AgentStatus.PENDING,
+    mode: 'emergent' as const,
+    plan: null,
+    agents: {},
+    relayStations: {},
+    messages: [],
+    streamToolCalls: [],
+    streamThinking: '',
+    finalReport: null,
+    error: null,
+  })),
 }));

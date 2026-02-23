@@ -15,6 +15,7 @@ import {
   clearToken,
 } from './api';
 import { LoginPage } from './LoginPage';
+import { useStore } from '../store';
 
 interface AuthContextValue {
   user: AuthUser | null;
@@ -73,6 +74,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const logout = useCallback(() => {
+    // 清空 Zustand store 中所有会话数据，防止切换用户后残留上一个用户的数据
+    useStore.getState().clearAllSessions();
+    // 清除 URL 中的 session 参数
+    const url = new URL(window.location.href);
+    url.searchParams.delete('session');
+    window.history.replaceState({}, '', url.toString());
+    // 清除认证状态
     clearToken();
     setToken(null);
     setUser(null);

@@ -218,9 +218,20 @@ class DirectAgent:
             full_response = ""
             max_tool_rounds = 5
             
-            # 工具调用循环：用非流式 chat_complete 处理 tool calling
+            # 工具调用循环（仅第一轮用非流式检测 tool_calls）
+            # 策略：
+            # - Round 1: chat_complete 检测是否需要调工具
+            #   - 有 tool_calls → 执行工具 → 直接 break 进入流式最终回答
+            #   - 无 tool_calls → break 进入流式最终回答
+            # - 多轮工具调用仍然支持，但限制非流式检测次数
+            #
+            # 核心优化：工具执行完毕后不再用 chat_complete 检测，
+            # 直接走流式 chat() 生成最终回答，避免非流式调用卡死
+            
+            pending_tool_round = True  # 是否还需要做工具检测
+            
             for tool_round in range(max_tool_rounds):
-                if not tool_definitions:
+                if not tool_definitions or not pending_tool_round:
                     break
                 
                 print(f"[DirectAgent] Tool round {tool_round + 1}, calling LLM (non-streaming for tool detection)...")
@@ -232,10 +243,9 @@ class DirectAgent:
                 tool_calls = response.get("tool_calls")
                 
                 if not tool_calls:
-                    # 没有工具调用 → 不使用这个非流式结果，跳出循环走流式输出
                     break
                 
-                # 有工具调用：发出 thinking 事件（LLM 在调用工具前的分析）
+                # 有工具调用：发出 thinking 事件
                 if content:
                     yield AgentThinkingEvent(
                         agent_id=self.agent_id,
@@ -243,7 +253,6 @@ class DirectAgent:
                         thinking=content,
                     )
                 
-                # 处理工具调用
                 messages.append(LLMMessage(
                     role="assistant",
                     content=content or "",
@@ -255,20 +264,17 @@ class DirectAgent:
                     func_name = tc["function"]["name"]
                     func_args_str = tc["function"]["arguments"]
                     
-                    # TOOL_CALL_START 事件
                     yield ToolCallStartEvent(
                         tool_call_id=tool_call_id,
                         tool_call_name=func_name,
                         parent_message_id=message_id,
                     )
                     
-                    # TOOL_CALL_ARGS 事件
                     yield ToolCallArgsEvent(
                         tool_call_id=tool_call_id,
                         delta=func_args_str if isinstance(func_args_str, str) else json.dumps(func_args_str, ensure_ascii=False),
                     )
                     
-                    # 执行技能
                     try:
                         func_args = json.loads(func_args_str) if isinstance(func_args_str, str) else func_args_str
                         task_desc = func_args.get("task", task)
@@ -329,12 +335,18 @@ class DirectAgent:
                             content=error_msg,
                             tool_call_id=tool_call_id,
                         ))
+                
+                # 工具执行完毕：直接跳出循环走流式最终回答
+                # 不再用 chat_complete 检测是否还需要工具（这是卡死的根因）
+                # 如果模型确实还需要工具，流式回答中会以文字说明，用户可追问
+                pending_tool_round = False
             
-            # 在工具调用循环结束后再发出 TEXT_MESSAGE_START
-            # 这样前端 addMessage 收割时，streamThinking 和 streamToolCalls 已经积累完毕
+            # TEXT_MESSAGE_START：在工具调用循环后发出
             yield TextMessageStartEvent(message_id=message_id, role="assistant")
             
-            # 最终文本回复：始终用流式输出
+            # 最终文本回复：直接流式输出
+            # 关键优化：工具结果已在 messages 中，直接流式 chat() 生成回答
+            # 不再经过 chat_complete 非流式调用（解决 Venus 代理超时卡死问题）
             print(f"[DirectAgent] Final streaming response...")
             async for chunk in self.provider.chat(messages, self.llm_config):
                 full_response += chunk

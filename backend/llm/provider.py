@@ -71,9 +71,11 @@ class OpenAIProvider(LLMProvider):
     
     def __init__(self, api_key: Optional[str] = None, base_url: Optional[str] = None):
         from openai import AsyncOpenAI
+        import httpx
         self.client = AsyncOpenAI(
             api_key=api_key or os.getenv("OPENAI_API_KEY"),
-            base_url=base_url or os.getenv("OPENAI_BASE_URL")
+            base_url=base_url or os.getenv("OPENAI_BASE_URL"),
+            timeout=httpx.Timeout(120.0, connect=10.0),  # 总超时 120s，连接超时 10s
         )
     
     async def chat(

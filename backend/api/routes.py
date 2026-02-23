@@ -1181,6 +1181,7 @@ async def get_session_live_state(session_id: str, user_id: str = Depends(get_cur
                 "session_id": session_id,
                 "task": session_info.task if session_info else None,
                 "status": session_info.status if session_info else "active",
+                "mode": session_info.mode if session_info else "emergent",
                 "plan": agent.current_plan if hasattr(agent, 'current_plan') and agent.current_plan else None,
                 "agents": agents_data,
                 "relay_stations": relay_stations_data,
@@ -1277,6 +1278,7 @@ async def get_session_live_state(session_id: str, user_id: str = Depends(get_cur
             "session_id": session_id,
             "task": session_data.get("task"),
             "status": session_data.get("status", "completed"),
+            "mode": session_data.get("mode", "emergent"),
             "plan": plan,
             "agents": agents_data,
             "relay_stations": relay_stations_data,
@@ -1426,6 +1428,7 @@ async def _build_session_snapshot(session_manager: SessionManager, session_id: s
             "is_live": True,
             "task": session_info.task if session_info else None,
             "status": session_info.status if session_info else "active",
+            "mode": session_info.mode if session_info else "emergent",
             "plan": agent.current_plan if hasattr(agent, 'current_plan') else None,
             "agents": agents_data,
             "relay_stations": relay_stations_data,
@@ -1464,6 +1467,7 @@ async def _build_session_snapshot(session_manager: SessionManager, session_id: s
         "is_live": False,
         "task": session_data.get("task") if session_data else None,
         "status": session_data.get("status", "completed") if session_data else "unknown",
+        "mode": session_data.get("mode", "emergent") if session_data else "emergent",
         "plan": session_data.get("plan") if session_data else None,
         "agents": [
             {

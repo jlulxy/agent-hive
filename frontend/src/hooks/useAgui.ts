@@ -648,12 +648,18 @@ export function useAgui() {
     const { 
       setTask: storeSetTask, 
       setStatus: storeSetStatus, 
+      setMode: storeSetMode,
       setPlan: storeSetPlan,
       addAgent: storeAddAgent, 
       addRelayStation: storeAddRelayStation, 
       addRelayMessage: storeAddRelayMessage,
       addMessage: storeAddMessage,
     } = useStore.getState();
+    
+    // 设置模式（必须在其他数据之前设置，决定 UI 布局）
+    if (snapshot.mode) {
+      storeSetMode(snapshot.mode as 'emergent' | 'direct');
+    }
     
     // 设置任务
     if (snapshot.task) {

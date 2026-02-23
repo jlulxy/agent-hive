@@ -151,9 +151,14 @@ export default function App() {
         const session = sessions[selectedSessionId];
         if (session.status === AgentStatus.RUNNING || session.status === AgentStatus.PLANNING) {
           try {
-            // 订阅但不覆盖 — subscribeToSession 中 handleStateSnapshot 会调用 createSession
-            // 但 createSession 对已存在的 session 只更新 lastActiveAt，不清空数据
-            await subscribeToSession(selectedSessionId);
+            // 先确认后端会话确实还在运行，避免对已完成的 session 发起无意义的 subscribe
+            const liveCheck = await checkSessionIsLive(selectedSessionId);
+            if (liveCheck.success && liveCheck.is_live && liveCheck.has_agent) {
+              await subscribeToSession(selectedSessionId);
+            } else {
+              // 后端已完成，同步前端状态
+              console.log(`[App] Session ${selectedSessionId} is no longer live, skipping subscription`);
+            }
           } catch (err) {
             console.warn('[App] Re-subscription failed, using cached data:', err);
           }
@@ -193,10 +198,15 @@ export default function App() {
         createSession(selectedSessionId);
         
         const { 
-          setTask, setStatus, setPlan, 
+          setTask, setStatus, setMode, setPlan, 
           addAgent, addRelayStation, addRelayMessage,
           addMessage,
         } = useStore.getState();
+        
+        // 设置模式（必须在其他数据之前设置，决定 UI 布局）
+        if (response.data.mode) {
+          setMode(response.data.mode as 'emergent' | 'direct');
+        }
         
         // 设置任务
         if (response.data.task) {

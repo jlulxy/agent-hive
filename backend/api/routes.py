@@ -20,7 +20,7 @@ from datetime import datetime
 
 from core import MasterAgent, DirectAgent, InterventionType, InterventionScope, HumanIntervention
 from core.session_manager import get_session_manager, SessionManager
-from auth.dependencies import get_optional_user
+from auth.dependencies import get_current_user, verify_session_owner, verify_token_from_query
 
 
 router = APIRouter()
@@ -83,7 +83,7 @@ class StatusResponse(BaseModel):
 # ========== SSE 事件流接口 ==========
 
 @router.post("/task/stream")
-async def execute_task_stream(request: TaskRequest, user_id: Optional[str] = Depends(get_optional_user)):
+async def execute_task_stream(request: TaskRequest, user_id: str = Depends(get_current_user)):
     """
     执行任务 - SSE 事件流
     
@@ -122,6 +122,9 @@ async def execute_task_stream(request: TaskRequest, user_id: Optional[str] = Dep
     # 创建或获取会话
     if request.session_id:
         session_id = request.session_id
+        
+        # 归属校验：确保追问的 session 属于当前用户
+        await verify_session_owner(session_id, user_id)
         
         # 追问检测：session 已存在且已完成，且有历史数据
         session_info = session_manager.get_session_info(session_id)
@@ -448,10 +451,11 @@ async def execute_task_stream(request: TaskRequest, user_id: Optional[str] = Dep
 
 
 @router.get("/task/{session_id}/stream")
-async def get_task_stream(session_id: str):
+async def get_task_stream(session_id: str, user_id: str = Depends(get_current_user)):
     """
     获取任务事件流 - 用于重连
     """
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     agent = session_manager.get_agent(session_id)
     
@@ -487,8 +491,9 @@ async def get_task_stream(session_id: str):
 # ========== 状态查询接口 ==========
 
 @router.get("/task/{session_id}/state")
-async def get_task_state(session_id: str) -> StatusResponse:
+async def get_task_state(session_id: str, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """获取任务状态"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     agent = session_manager.get_agent(session_id)
     
@@ -523,7 +528,7 @@ async def list_sessions(
     source: str = Query("memory", description="Data source: memory or db"),
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    user_id: Optional[str] = Depends(get_optional_user)
+    user_id: str = Depends(get_current_user)
 ) -> StatusResponse:
     """列出所有会话
     
@@ -568,8 +573,9 @@ async def list_sessions(
 
 
 @router.delete("/session/{session_id}")
-async def close_session(session_id: str) -> StatusResponse:
+async def close_session(session_id: str, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """关闭并清理会话"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     
     if session_manager.close_session_sync(session_id):
@@ -582,8 +588,9 @@ async def close_session(session_id: str) -> StatusResponse:
 
 
 @router.get("/session/{session_id}")
-async def get_session_detail(session_id: str) -> StatusResponse:
+async def get_session_detail(session_id: str, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """获取单个会话的详细信息（从数据库）"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     
     # 尝试从数据库获取
@@ -608,8 +615,9 @@ async def get_session_detail(session_id: str) -> StatusResponse:
 
 
 @router.get("/session/{session_id}/agents")
-async def get_session_agents(session_id: str) -> StatusResponse:
+async def get_session_agents(session_id: str, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """获取会话的所有 Agent"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     agents = await session_manager.get_session_agents(session_id)
     
@@ -623,9 +631,11 @@ async def get_session_agents(session_id: str) -> StatusResponse:
 @router.get("/session/{session_id}/relay-history")
 async def get_session_relay_history(
     session_id: str,
-    limit: int = Query(100, ge=1, le=500)
+    limit: int = Query(100, ge=1, le=500),
+    user_id: str = Depends(get_current_user)
 ) -> StatusResponse:
     """获取会话的中继消息历史（从数据库）"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     messages = await session_manager.get_session_relay_history(session_id, limit)
     
@@ -639,9 +649,11 @@ async def get_session_relay_history(
 @router.get("/session/{session_id}/interventions")
 async def get_session_interventions(
     session_id: str,
-    limit: int = Query(50, ge=1, le=200)
+    limit: int = Query(50, ge=1, le=200),
+    user_id: str = Depends(get_current_user)
 ) -> StatusResponse:
     """获取会话的干预历史（从数据库）"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     interventions = await session_manager.get_session_interventions(session_id, limit)
     
@@ -655,7 +667,7 @@ async def get_session_interventions(
 # ========== 人工干预接口 (升级版 - 通过中继站广播) ==========
 
 @router.post("/intervention")
-async def apply_intervention(request: InterventionRequest) -> StatusResponse:
+async def apply_intervention(request: InterventionRequest, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """
     应用人工干预 - 升级版
     
@@ -665,6 +677,7 @@ async def apply_intervention(request: InterventionRequest) -> StatusResponse:
     支持通过中继站广播干预消息，让所有相关 Agent 都能感知
     返回生成的中继事件供前端更新状态
     """
+    await verify_session_owner(request.session_id, user_id)
     session_manager = get_session_manager()
     agent = session_manager.get_agent(request.session_id)
     
@@ -916,13 +929,15 @@ async def broadcast_to_relay(
     message: str,
     reason: str = "",
     priority: int = 5,
-    force_action: bool = False
+    force_action: bool = False,
+    user_id: str = Depends(get_current_user)
 ) -> StatusResponse:
     """
     向中继站广播消息 - 简化接口
     
     这是一个快捷接口，用于快速向指定会话的所有 Agent 广播消息
     """
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     agent = session_manager.get_agent(session_id)
     
@@ -950,8 +965,9 @@ async def broadcast_to_relay(
 
 
 @router.get("/relay/{session_id}/history")
-async def get_relay_history(session_id: str, limit: int = 20) -> StatusResponse:
+async def get_relay_history(session_id: str, limit: int = 20, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """获取指定会话的中继站消息历史"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     agent = session_manager.get_agent(session_id)
     
@@ -982,8 +998,9 @@ async def get_relay_history(session_id: str, limit: int = 20) -> StatusResponse:
 
 
 @router.get("/relay/{session_id}/message/{message_id}")
-async def get_relay_message_detail(session_id: str, message_id: str) -> StatusResponse:
+async def get_relay_message_detail(session_id: str, message_id: str, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """获取指定会话中的单条中继消息详情"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     agent = session_manager.get_agent(session_id)
     
@@ -1017,8 +1034,9 @@ async def get_relay_message_detail(session_id: str, message_id: str) -> StatusRe
 
 
 @router.get("/relay/{session_id}/interventions")
-async def get_intervention_history(session_id: str, limit: int = 10) -> StatusResponse:
+async def get_intervention_history(session_id: str, limit: int = 10, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """获取指定会话的人工干预历史"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     agent = session_manager.get_agent(session_id)
     
@@ -1050,22 +1068,19 @@ async def get_intervention_history(session_id: str, limit: int = 10) -> StatusRe
 
 @router.get("/health")
 async def health_check() -> Dict[str, Any]:
-    """健康检查"""
-    session_manager = get_session_manager()
-    stats = await session_manager.get_full_stats()
+    """健康检查（公开端点，不返回敏感统计）"""
     return {
         "status": "healthy",
         "service": "Agent Swarm",
         "version": "1.1.0",
-        "session_manager_stats": stats
     }
 
 
 @router.get("/stats")
-async def get_detailed_stats() -> StatusResponse:
-    """获取详细统计信息"""
+async def get_detailed_stats(user_id: str = Depends(get_current_user)) -> StatusResponse:
+    """获取详细统计信息（仅返回当前用户数据）"""
     session_manager = get_session_manager()
-    stats = await session_manager.get_full_stats()
+    stats = await session_manager.get_full_stats(user_id=user_id)
     
     return StatusResponse(
         success=True,
@@ -1075,21 +1090,15 @@ async def get_detailed_stats() -> StatusResponse:
 
 
 @router.get("/session/{session_id}/live-state")
-async def get_session_live_state(session_id: str) -> StatusResponse:
+async def get_session_live_state(session_id: str, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """
     获取会话的完整状态
     
     优先级：
     1. 如果会话在内存中活跃 → 返回实时状态
     2. 如果会话不在内存中 → 从数据库加载历史数据
-    
-    返回数据包括：
-    - 所有 Agent 的状态
-    - 所有中继站及消息
-    - 任务执行状态和计划
-    
-    这个 API 用于切换到任意会话时，恢复完整的前端状态
     """
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     agent = session_manager.get_agent(session_id)
     
@@ -1280,22 +1289,16 @@ async def get_session_live_state(session_id: str) -> StatusResponse:
 # ========== 多客户端订阅接口 (新增) ==========
 
 @router.get("/session/{session_id}/subscribe")
-async def subscribe_to_session(session_id: str):
+async def subscribe_to_session(session_id: str, token: Optional[str] = Query(None)):
     """
     订阅会话事件流 - 支持多客户端
     
-    这个端点允许多个浏览器/标签页同时订阅同一个会话的实时事件流。
-    
-    流程：
-    1. 首先发送当前状态快照（STATE_SNAPSHOT）
-    2. 然后持续推送后续的实时事件
-    3. 客户端断开时自动取消订阅
-    
-    使用场景：
-    - 在新浏览器中打开已有会话
-    - 多设备同步查看任务进度
-    - 页面刷新后重新连接
+    注意：EventSource API 不支持自定义 Header，因此通过 URL query 参数传递 token。
     """
+    # 验证 token（EventSource 无法发 Authorization header）
+    user_id = verify_token_from_query(token)
+    await verify_session_owner(session_id, user_id)
+    
     session_manager = get_session_manager()
     
     # 检查会话是否存在（内存或数据库）
@@ -1479,8 +1482,9 @@ async def _build_session_snapshot(session_manager: SessionManager, session_id: s
 
 
 @router.get("/session/{session_id}/subscribers")
-async def get_session_subscribers(session_id: str) -> StatusResponse:
+async def get_session_subscribers(session_id: str, user_id: str = Depends(get_current_user)) -> StatusResponse:
     """获取会话的当前订阅者数量"""
+    await verify_session_owner(session_id, user_id)
     session_manager = get_session_manager()
     count = session_manager.get_subscriber_count(session_id)
     
@@ -1495,16 +1499,23 @@ async def get_session_subscribers(session_id: str) -> StatusResponse:
 
 
 @router.get("/subscribers/stats")
-async def get_all_subscriber_stats() -> StatusResponse:
-    """获取所有会话的订阅者统计"""
+async def get_all_subscriber_stats(user_id: str = Depends(get_current_user)) -> StatusResponse:
+    """获取所有会话的订阅者统计（仅返回当前用户的会话）"""
     session_manager = get_session_manager()
-    stats = session_manager.get_all_subscriber_stats()
+    all_stats = session_manager.get_all_subscriber_stats()
+    
+    # 过滤只返回当前用户的会话
+    user_stats = {}
+    for sid, count in all_stats.items():
+        session_info = session_manager.get_session_info(sid)
+        if session_info and session_info.user_id == user_id:
+            user_stats[sid] = count
     
     return StatusResponse(
         success=True,
-        message=f"Found {len(stats)} sessions with subscribers",
+        message=f"Found {len(user_stats)} sessions with subscribers",
         data={
-            "sessions": stats,
-            "total_subscribers": sum(stats.values())
+            "sessions": user_stats,
+            "total_subscribers": sum(user_stats.values())
         }
     )

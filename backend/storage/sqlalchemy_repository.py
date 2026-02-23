@@ -10,7 +10,7 @@ from typing import List, Optional, Dict, Any
 from contextlib import contextmanager
 
 from sqlalchemy.orm import Session
-from sqlalchemy import and_, or_, desc, asc
+from sqlalchemy import and_, desc, asc
 
 from storage.base import (
     BaseSessionRepository,

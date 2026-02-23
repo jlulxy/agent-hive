@@ -338,6 +338,7 @@ class SessionManager:
                 provider=session_info.provider,
                 model=session_info.model,
                 mode=session_info.mode,
+                user_id=session_info.user_id,
                 plan_json=json.dumps(session_info.plan) if session_info.plan else None,
                 created_at=session_info.created_at,
                 updated_at=session_info.last_active_at,

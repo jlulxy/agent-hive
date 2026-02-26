@@ -229,9 +229,20 @@ class DirectAgent:
                     break
                 
                 print(f"[DirectAgent] Tool round {tool_round + 1}/{max_tool_rounds}, calling LLM (non-streaming for tool detection)...")
-                response = await self.provider.chat_complete(
-                    messages, self.llm_config, tools=tool_definitions
-                )
+                try:
+                    # 防止后续轮次在非流式 tool 检测阶段长时间卡住
+                    response = await asyncio.wait_for(
+                        self.provider.chat_complete(messages, self.llm_config, tools=tool_definitions),
+                        timeout=60,
+                    )
+                except asyncio.TimeoutError:
+                    print(f"[DirectAgent] Tool detection timeout in round {tool_round + 1}, fallback to final streaming response")
+                    yield AgentThinkingEvent(
+                        agent_id=self.agent_id,
+                        agent_name="Assistant",
+                        thinking="工具检索达到时限，先基于已有信息继续生成完整结论。",
+                    )
+                    break
                 
                 content = response.get("content", "")
                 tool_calls = response.get("tool_calls")
@@ -330,7 +341,7 @@ class DirectAgent:
                         )
                         messages.append(LLMMessage(
                             role="tool",
-                            content=error_msg,
+                            content=json.dumps({"success": False, "error": error_msg}, ensure_ascii=False),
                             tool_call_id=tool_call_id,
                         ))
                 
